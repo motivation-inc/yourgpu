@@ -8,5 +8,7 @@ description = "Simple GPU abstraction built on top of WGPU"
 repository = "https://github.com/motivation-inc/yourgpu"
 
 [dependencies]
+pollster = "0.4.0"
+tokio = "1.50.0"
 wgpu = "28.0.0"
 winit = "0.30.13"

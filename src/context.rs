@@ -1,3 +1,5 @@
+use wgpu::{BackendOptions, BufferUsages, GlBackendOptions, MemoryBudgetThresholds};
+
 use crate::{
     buffer::Buffer,
     program::Program,
@@ -7,20 +9,49 @@ use crate::{
     window_id::WindowId,
 };
 
-pub struct Context {}
+pub struct Context {
+    instance: wgpu::Instance,
+    adapter: wgpu::Adapter,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+}
 
 impl Context {
-    /// Constructs a new context object.
+    /// Constructs a new GPU context object with a primary-preferred backend (Vulkan, Metal, OpenGL, or DX12).
+    ///
+    /// This function is thread-blocking, as gaining access to GPU devices is not instant.
     ///
     /// # Example
     ///
     /// ```
     /// use yourgpu::Context;
     ///
-    /// let ctx = Context::new();
+    /// let ctx = Context::new(); // blocking
     /// ```
     pub fn new() -> Self {
-        Self {}
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::PRIMARY,
+            ..Default::default()
+        });
+
+        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface: None,
+            force_fallback_adapter: false,
+        }))
+        .unwrap();
+
+        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+            ..Default::default()
+        }))
+        .unwrap();
+
+        Self {
+            instance,
+            adapter,
+            device,
+            queue,
+        }
     }
 
     /// Attaches a [winit `Window` object](https://docs.rs/winit-gtk/latest/winit/window/struct.Window.html) to the context, returning a `WindowId` object referencing the window.
