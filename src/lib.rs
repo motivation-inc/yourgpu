@@ -7,6 +7,7 @@ mod vertex_array;
 mod window_id;
 
 pub use {
+    buffer::BufferType,
     context::Context,
     texture::TextureFormat,
     vertex_array::{VertexAttributeFormat, VertexLayout},

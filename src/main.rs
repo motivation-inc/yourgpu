@@ -1,10 +1,13 @@
-use yourgpu::{Context, TextureFormat, VertexAttributeFormat, VertexLayout};
+use yourgpu::{BufferType, Context, TextureFormat, VertexAttributeFormat, VertexLayout};
 
 fn main() {
     let ctx = Context::new();
     let tex = ctx.texture(1028, 1028, &[], TextureFormat::Rgba8Unorm);
     let prog = ctx.program("// ...vertex shader", Some("// ...fragment shader"));
-    let vbo = ctx.buffer(&[0.0, 1.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0]);
+    let vbo = ctx.buffer(
+        &[0.0, 1.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0],
+        BufferType::Vertex,
+    );
     let vao = ctx.vertex_array(
         &prog,
         &vbo,
