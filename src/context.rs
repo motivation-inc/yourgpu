@@ -1,12 +1,15 @@
 use crate::{
-    BufferType,
+    BufferType, TextureType,
     buffer::Buffer,
     program::Program,
     render_context::RenderContext,
+    surface::Surface,
     texture::{Texture, TextureFormat},
     vertex_array::{VertexArray, VertexLayout},
-    window_id::WindowId,
+    window::WindowSurface,
 };
+use std::sync::Arc;
+use winit::window::Window;
 
 /// A GPU context object, containing a `wgpu::Instance` and `wgpu::Device`.
 ///
@@ -18,7 +21,7 @@ pub struct Context {
     queue: wgpu::Queue,
 }
 
-impl Context {
+impl<'a> Context {
     /// Constructs a new `Context` object with a primary-preferred backend (Vulkan, Metal, OpenGL, or DX12).
     ///
     /// This function is **thread-blocking**, as gaining access to GPU devices is not instantaneous.
@@ -56,13 +59,58 @@ impl Context {
         }
     }
 
-    /// Attaches a [winit `Window` object](https://docs.rs/winit-gtk/latest/winit/window/struct.Window.html) to the context, returning a `WindowId` object referencing the window.
-    pub fn attach_window(&self) -> WindowId {
-        WindowId(0)
+    /// Constructs a new `WindowSurface` object from a [winit `Window` object](https://docs.rs/winit-gtk/latest/winit/window/struct.Window.html).
+    ///
+    /// Since a winit `Window` is created asynchronously, `window` takes an `Arc<Window>` for thread safety.
+    pub fn attach_window(&self, window: Arc<Window>) -> WindowSurface<'a> {
+        let size = window.inner_size();
+        let surface = self.instance.create_surface(window.clone()).unwrap();
+        let surface_caps = surface.get_capabilities(&self.adapter);
+        let surface_format = surface_caps.formats.iter().copied().find(|f| f.is_srgb());
+
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: surface_format.unwrap(),
+            width: size.width,
+            height: size.height,
+            present_mode: surface_caps.present_modes[0],
+            alpha_mode: surface_caps.alpha_modes[0],
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        };
+
+        WindowSurface {
+            surface: surface,
+            config: config,
+        }
     }
 
+    /// Constructs a new `Program` object, where `vertex_shader` is the vertex shader, and `fragment_shader` is the
+    /// optional fragment shader contained in the program.
+    ///
+    /// This function requires the shader source to be valid [WebGPU Shading Language](https://www.w3.org/TR/WGSL/).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// panic!("UNIMPLEMENTED");
+    /// ```
     pub fn program(&self, vertex_shader: &str, fragment_shader: Option<&str>) -> Program {
-        Program {}
+        let vs_module = self
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("vertex shader"),
+                source: wgpu::ShaderSource::Wgsl(vertex_shader.into()),
+            });
+        let fs_module = fragment_shader.map(|fs| {
+            self.device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("fragment shader"),
+                    source: wgpu::ShaderSource::Wgsl(fs.into()),
+                })
+        });
+
+        Program::new(vs_module, fs_module)
     }
 
     /// Constructs a new `Buffer` object, where `data` is an array of `f32` types.
@@ -106,29 +154,178 @@ impl Context {
             mapped_at_creation: false,
         });
 
-        // Upload data
+        // upload data
         self.queue
             .write_buffer(&buffer, 0, bytemuck::cast_slice(data));
 
         Buffer::new(buffer)
     }
 
+    /// Constructs a new `Texture` object, with `width` and `height`, `data` being the image data,
+    /// and `format` being the texture format of the image.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use yourgpu::{Context, TextureFormat, TextureType};
+    ///
+    /// let (width, height) = (2, 2);
+    ///
+    /// let ctx = Context::new();
+    /// let tex = ctx.texture(width, height, &[0.0, 0.0, 0.0, 0.0], TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
+    /// ```
     pub fn texture(
         &self,
-        width: usize,
-        height: usize,
+        width: u32,
+        height: u32,
         data: &[f32],
         format: TextureFormat,
+        texture_type: TextureType,
     ) -> Texture {
-        Texture {}
+        if data.len() == (width * height) as usize {
+            let size = wgpu::Extent3d {
+                width: width,
+                height: height,
+                depth_or_array_layers: 1,
+            };
+
+            let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: None,
+                size: size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: format.to_wgpu(),
+                usage: match texture_type {
+                    TextureType::TextureBinding => {
+                        wgpu::TextureUsages::TEXTURE_BINDING
+                            | wgpu::TextureUsages::COPY_SRC
+                            | wgpu::TextureUsages::COPY_DST
+                    }
+                    TextureType::RenderAttachment => {
+                        wgpu::TextureUsages::RENDER_ATTACHMENT
+                            | wgpu::TextureUsages::TEXTURE_BINDING
+                            | wgpu::TextureUsages::COPY_SRC
+                            | wgpu::TextureUsages::COPY_DST
+                    }
+                },
+                view_formats: &[],
+            });
+
+            self.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    aspect: wgpu::TextureAspect::All,
+                    texture: &texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                },
+                bytemuck::cast_slice(data),
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * width),
+                    rows_per_image: Some(height),
+                },
+                size,
+            );
+
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                address_mode_w: wgpu::AddressMode::ClampToEdge,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Nearest,
+                mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+                ..Default::default()
+            });
+            let config = wgpu::SurfaceConfiguration {
+                usage: wgpu::TextureUsages::all(),
+                format: format.to_wgpu(),
+                width: width,
+                height: height,
+                present_mode: wgpu::PresentMode::AutoVsync,
+                desired_maximum_frame_latency: 2,
+                alpha_mode: wgpu::CompositeAlphaMode::Auto,
+                view_formats: Vec::new(),
+            };
+
+            Texture::new(texture, view, sampler, config)
+        } else {
+            panic!("Input data must be same in size as width * height");
+        }
     }
 
-    pub fn vertex_array(
+    pub fn vertex_array<T>(
         &self,
+        surface: &T,
         program: &Program,
         buffer: &Buffer,
         layout: VertexLayout,
-    ) -> VertexArray {
+    ) -> VertexArray
+    where
+        T: Surface,
+    {
+        // let config = surface.config();
+        //
+        // let render_pipeline_layout =
+        //     self.device
+        //         .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        //             label: None,
+        //             bind_group_layouts: &[],
+        //             immediate_size: 0,
+        //         });
+
+        // let fragment_shader = match fs_module {
+        //     Some(module) => Some(wgpu::FragmentState {
+        //         module: &module,
+        //         entry_point: Some("fs_main"),
+        //         targets: &[Some(wgpu::ColorTargetState {
+        //             format: config.format,
+        //             blend: Some(wgpu::BlendState::REPLACE),
+        //             write_mask: wgpu::ColorWrites::ALL,
+        //         })],
+        //         compilation_options: wgpu::PipelineCompilationOptions::default(),
+        //     }),
+        //     None => None,
+        // };
+
+        // let render_pipeline = self
+        //     .device
+        //     .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        //         label: Some("Render Pipeline"),
+        //         layout: Some(&render_pipeline_layout),
+        //         vertex: wgpu::VertexState {
+        //             module: &vs_module,
+        //             entry_point: Some("vs_main"),
+        //             buffers: &[],
+        //             compilation_options: wgpu::PipelineCompilationOptions::default(),
+        //         },
+        //         fragment: fragment_shader,
+        //         primitive: wgpu::PrimitiveState {
+        //             topology: wgpu::PrimitiveTopology::TriangleList,
+        //             strip_index_format: None,
+        //             front_face: wgpu::FrontFace::Ccw,
+        //             cull_mode: Some(wgpu::Face::Back),
+        //             // Setting this to anything other than Fill requires Features::POLYGON_MODE_LINE
+        //             // or Features::POLYGON_MODE_POINT
+        //             polygon_mode: wgpu::PolygonMode::Fill,
+        //             // Requires Features::DEPTH_CLIP_CONTROL
+        //             unclipped_depth: false,
+        //             // Requires Features::CONSERVATIVE_RASTERIZATION
+        //             conservative: false,
+        //         },
+        //         depth_stencil: None,
+        //         multisample: wgpu::MultisampleState {
+        //             count: 1,
+        //             mask: !0,
+        //             alpha_to_coverage_enabled: false,
+        //         },
+        //         // If the pipeline will be used with a multiview render pass, this
+        //         // tells wgpu to render to just specific texture layers.
+        //         multiview_mask: None,
+        //         cache: None,
+        //     });
+
         VertexArray {}
     }
 
@@ -141,7 +338,7 @@ impl Context {
         f(&mut r);
     }
 
-    pub fn render_window<F>(&self, window_id: &WindowId, f: F)
+    pub fn render_window<F>(&self, window: &WindowSurface, f: F)
     where
         F: FnOnce(&mut RenderContext),
     {

@@ -2,13 +2,14 @@ mod buffer;
 mod context;
 mod program;
 mod render_context;
+mod surface;
 mod texture;
 mod vertex_array;
-mod window_id;
+mod window;
 
 pub use {
     buffer::BufferType,
     context::Context,
-    texture::TextureFormat,
+    texture::{TextureFormat, TextureType},
     vertex_array::{VertexAttributeFormat, VertexLayout},
 };
