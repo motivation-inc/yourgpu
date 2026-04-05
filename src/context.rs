@@ -238,7 +238,7 @@ impl<'a> Context {
                 data,
                 wgpu::TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(format.bytes_per_pixel() * width),
+                    bytes_per_row: Some(((format.bytes_per_pixel() * width + 255) / 256) * 256),
                     rows_per_image: Some(height),
                 },
                 size,
@@ -379,7 +379,7 @@ impl<'a> Context {
     /// );
     ///
     /// ctx.render_texture(&tex, |r| {
-    ///     r.clear(0.0, 1.0, 0.0, 0.0) // solid green
+    ///     r.clear(0.0, 1.0, 0.0, 1.0) // solid green
     /// })
     /// ```
     pub fn render_texture<F>(&self, texture: &Texture, f: F)
@@ -392,7 +392,19 @@ impl<'a> Context {
 
         f(&mut r);
 
-        let clear_color = { wgpu::Color::BLACK }; // TODO: parse for first clear color operation (if any)
+        let clear_color = r
+            .operations
+            .iter()
+            .find_map(|op| match op {
+                RenderOperation::Clear(red, green, blue, alpha) => Some(wgpu::Color {
+                    r: *red,
+                    g: *green,
+                    b: *blue,
+                    a: *alpha,
+                }),
+                _ => None,
+            })
+            .unwrap_or(wgpu::Color::BLACK);
 
         let mut encoder = self
             .device
@@ -557,8 +569,7 @@ impl<'a> Context {
         let width = texture.config.width;
         let height = texture.config.height;
 
-        let pixel_size = texture.format.bytes_per_pixel();
-        let bytes_per_row = pixel_size * width;
+        let bytes_per_row = ((width * texture.format.bytes_per_pixel() + 255) / 256) * 256;
         let size = (bytes_per_row * height) as u64;
 
         // staging buffer
