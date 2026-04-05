@@ -17,15 +17,6 @@ pub enum BufferType {
 ///
 /// This struct is best created directly from the `Context::buffer` method, as it provides a higher level API for working with buffers.
 pub struct Buffer {
-    buffer: wgpu::Buffer,
-}
-
-impl Buffer {
-    pub fn new(buffer: wgpu::Buffer) -> Self {
-        Self { buffer }
-    }
-
-    pub fn inner(&self) -> &wgpu::Buffer {
-        &self.buffer
-    }
+    pub(crate) buffer: wgpu::Buffer,
+    pub(crate) length: u32, // number of elements
 }

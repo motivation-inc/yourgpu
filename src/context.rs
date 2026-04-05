@@ -110,7 +110,18 @@ impl<'a> Context {
                 })
         });
 
-        Program::new(vs_module, fs_module)
+        let bind_group_layout =
+            self.device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: None,
+                    entries: &[], // no uniforms yet
+                });
+
+        Program {
+            vertex_shader: vs_module,
+            fragment_shader: fs_module,
+            bind_group_layout,
+        }
     }
 
     /// Constructs a new `Buffer` object, where `data` is an array of `f32` types.
@@ -126,11 +137,8 @@ impl<'a> Context {
     /// let ctx = Context::new();
     /// let buffer = ctx.buffer(&[0.0, 0.0, 0.0], BufferType::Vertex);
     /// ```
-    pub fn buffer<T>(&self, data: &T, buffer_type: BufferType) -> Buffer
-    where
-        T: bytemuck::Pod,
-    {
-        let bytes = bytemuck::bytes_of(data);
+    pub fn buffer(&self, data: &[f32], buffer_type: BufferType) -> Buffer {
+        let bytes = bytemuck::cast_slice(data);
         let byte_size = (bytes.len() * std::mem::size_of::<u8>()) as u64;
 
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -161,7 +169,10 @@ impl<'a> Context {
         // upload data
         self.queue.write_buffer(&buffer, 0, bytes);
 
-        Buffer::new(buffer)
+        Buffer {
+            buffer,
+            length: data.len() as u32,
+        }
     }
 
     /// Constructs a new `Texture` object, with `width` and `height`, `data` being the image data,
@@ -177,20 +188,17 @@ impl<'a> Context {
     /// let ctx = Context::new();
     /// let tex = ctx.texture(width, height, &[0.0, 0.0, 0.0, 0.0], TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
     /// ```
-    pub fn texture<T>(
+    pub fn texture(
         &self,
         width: u32,
         height: u32,
-        data: &T,
+        data: &[f32],
         format: TextureFormat,
         texture_type: TextureType,
-    ) -> Texture
-    where
-        T: bytemuck::Pod,
-    {
-        let bytes = bytemuck::bytes_of(data);
+    ) -> Texture {
+        let bytes = bytemuck::cast_slice(data);
 
-        if bytes.len() == (width * height) as usize {
+        if data.len() == (width * height) as usize {
             let size = wgpu::Extent3d {
                 width: width,
                 height: height,
@@ -277,7 +285,7 @@ impl<'a> Context {
         let mut offset = 0;
         let mut attrs = vec![];
 
-        for attr in layout.attributes {
+        for attr in &layout.attributes {
             attrs.push(wgpu::VertexAttribute {
                 offset,
                 shader_location: attr.location,
@@ -297,7 +305,7 @@ impl<'a> Context {
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
-                bind_group_layouts: &[],
+                bind_group_layouts: &[&program.bind_group_layout],
                 immediate_size: 0,
             });
 
@@ -309,13 +317,13 @@ impl<'a> Context {
                 label: None,
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
-                    module: program.vertex_shader(),
+                    module: &program.vertex_shader,
                     entry_point: Some("vs_main"),
                     buffers: &[vertex_buffer_layout],
                     compilation_options: Default::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
-                    module: &program.fragment_shader().unwrap(),
+                    module: &program.fragment_shader.as_ref().unwrap(),
                     entry_point: Some("fs_main"),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: config.format,
@@ -331,17 +339,18 @@ impl<'a> Context {
                 cache: None,
             });
 
-        VertexArray::new(
+        VertexArray {
             pipeline,
-            vertex_buffer.inner().clone(),
-            index_buffer.map(|b| b.inner().clone()),
-        )
+            vertex_buffer: vertex_buffer.buffer.clone(),
+            index_buffer: index_buffer.map(|b| b.buffer.clone()),
+            vertex_count: vertex_buffer.length,
+            index_count: index_buffer.map(|b| b.length).unwrap_or(0),
+        }
     }
 
-    pub fn render_texture<F, T>(&self, texture: &Texture, f: F)
+    pub fn render_texture<F>(&self, texture: &Texture, f: F)
     where
-        T: bytemuck::Pod,
-        F: FnOnce(&mut RenderPass<T>),
+        F: FnOnce(&mut RenderPass),
     {
         let mut r = RenderPass {
             operations: Vec::new(),
@@ -349,43 +358,54 @@ impl<'a> Context {
 
         f(&mut r);
 
+        let clear_color = { wgpu::Color::BLACK }; // TODO: parse for first clear color operation (if any)
+
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         let view = &texture.view;
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(clear_color),
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
 
         for operation in r.operations {
             match operation {
-                RenderOperation::Clear(r, g, b, a) => {
-                    let _ = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: None,
-                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                            view,
-                            resolve_target: None,
-                            ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu::Color { r, g, b, a }),
-                                store: wgpu::StoreOp::Store,
-                            },
-                            depth_slice: None,
-                        })],
-                        depth_stencil_attachment: None,
-                        timestamp_writes: None,
-                        occlusion_query_set: None,
-                        multiview_mask: None,
-                    });
+                RenderOperation::Draw(vertex_array) => {
+                    pass.set_pipeline(&vertex_array.pipeline);
+                    pass.set_vertex_buffer(0, vertex_array.vertex_buffer.slice(..));
+
+                    if let Some(index) = &vertex_array.index_buffer {
+                        pass.set_index_buffer(index.slice(..), wgpu::IndexFormat::Uint32);
+                        pass.draw_indexed(0..vertex_array.index_count, 0, 0..1);
+                    } else {
+                        pass.draw(0..vertex_array.vertex_count, 0..1);
+                    }
                 }
-                RenderOperation::Draw(program, vertex_array) => {}
-                RenderOperation::SetUniform(location, data) => {}
+                _ => {}
             }
         }
+
+        drop(pass); // drop the mut reference to encoder
 
         self.queue.submit(Some(encoder.finish()));
     }
 
-    pub fn render_window<F, T>(&self, window: &WindowSurface, f: F)
+    pub fn render_window<F>(&self, window: &WindowSurface, f: F)
     where
-        T: bytemuck::Pod,
-        F: FnOnce(&mut RenderPass<T>),
+        F: FnOnce(&mut RenderPass),
     {
         let mut r = RenderPass {
             operations: Vec::new(),
@@ -410,7 +430,7 @@ impl<'a> Context {
     /// assert_eq!(vec![0.0, 0.0, 0.0], ctx.read_buffer(&buffer));
     /// ```
     pub fn read_buffer(&self, buffer: &Buffer) -> Vec<f32> {
-        let size = buffer.inner().size();
+        let size = buffer.buffer.size();
 
         // create staging buffer
         let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -425,7 +445,7 @@ impl<'a> Context {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
-        encoder.copy_buffer_to_buffer(buffer.inner(), 0, &staging_buffer, 0, size);
+        encoder.copy_buffer_to_buffer(&buffer.buffer, 0, &staging_buffer, 0, size);
 
         self.queue.submit(Some(encoder.finish()));
 
@@ -471,17 +491,13 @@ impl<'a> Context {
     ///
     /// ctx.write_buffer(&buffer, &[1.0, 1.0, 1.0]);
     /// ```
-    pub fn write_buffer(&self, buffer: &Buffer, data: &[f32]) -> Result<(), &'static str> {
-        if !buffer
-            .inner()
-            .usage()
-            .contains(wgpu::BufferUsages::COPY_DST)
-        {
+    pub fn write_buffer<T>(&self, buffer: &Buffer, data: &[f32]) -> Result<(), &'static str> {
+        if !buffer.buffer.usage().contains(wgpu::BufferUsages::COPY_DST) {
             return Err("Buffer must have COPY_DST usage");
         }
 
         self.queue
-            .write_buffer(buffer.inner(), 0, bytemuck::cast_slice(data));
+            .write_buffer(&buffer.buffer, 0, bytemuck::cast_slice(data));
 
         Ok(())
     }

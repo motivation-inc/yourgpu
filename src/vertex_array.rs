@@ -103,18 +103,6 @@ pub struct VertexArray {
     pub(crate) pipeline: wgpu::RenderPipeline,
     pub(crate) vertex_buffer: wgpu::Buffer,
     pub(crate) index_buffer: Option<wgpu::Buffer>,
-}
-
-impl VertexArray {
-    pub fn new(
-        pipeline: wgpu::RenderPipeline,
-        vertex_buffer: wgpu::Buffer,
-        index_buffer: Option<wgpu::Buffer>,
-    ) -> Self {
-        Self {
-            pipeline,
-            vertex_buffer,
-            index_buffer,
-        }
-    }
+    pub(crate) vertex_count: u32,
+    pub(crate) index_count: u32,
 }
