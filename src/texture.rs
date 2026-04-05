@@ -37,6 +37,21 @@ impl TextureFormat {
             TextureFormat::Rgba8Sint => wgpu::TextureFormat::Rgba8Sint,
         }
     }
+
+    pub fn bytes_per_pixel(&self) -> u32 {
+        match self {
+            TextureFormat::Rgba8Unorm
+            | TextureFormat::Rgba8UnormSrgb
+            | TextureFormat::Rgba8Uint
+            | TextureFormat::Rgba8Sint => 4,
+            TextureFormat::R8Unorm => 1,
+            TextureFormat::Rg8Unorm => 2,
+            TextureFormat::Rgba16Float => 8,
+            TextureFormat::Rgba32Float => 16,
+            TextureFormat::Depth24Plus => 4, // padded to 32-bit
+            TextureFormat::Depth32Float => 4,
+        }
+    }
 }
 
 /// A texture type.
@@ -46,26 +61,11 @@ pub enum TextureType {
 }
 
 pub struct Texture {
+    pub(crate) format: TextureFormat,
     pub(crate) texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,
     pub(crate) sampler: wgpu::Sampler,
     pub(crate) config: wgpu::SurfaceConfiguration,
-}
-
-impl Texture {
-    pub fn new(
-        texture: wgpu::Texture,
-        view: wgpu::TextureView,
-        sampler: wgpu::Sampler,
-        config: wgpu::SurfaceConfiguration,
-    ) -> Self {
-        Self {
-            texture,
-            view,
-            sampler,
-            config,
-        }
-    }
 }
 
 impl Surface for Texture {

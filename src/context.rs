@@ -175,7 +175,7 @@ impl<'a> Context {
         }
     }
 
-    /// Constructs a new `Texture` object, with `width` and `height`, `data` being the image data,
+    /// Constructs a new `Texture` object, with `width` and `height`, `data` being the image data (in bytes),
     /// and `format` being the texture format of the image.
     ///
     /// # Example
@@ -186,88 +186,88 @@ impl<'a> Context {
     /// let (width, height) = (2, 2);
     ///
     /// let ctx = Context::new();
-    /// let tex = ctx.texture(width, height, &[0.0, 0.0, 0.0, 0.0], TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
+    /// let tex = ctx.texture(width, height, &[0x32, 0x32, 0x32, 0x32], TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
     /// ```
     pub fn texture(
         &self,
         width: u32,
         height: u32,
-        data: &[f32],
+        bytes: &[u8],
         format: TextureFormat,
         texture_type: TextureType,
     ) -> Texture {
-        let bytes = bytemuck::cast_slice(data);
+        let size = wgpu::Extent3d {
+            width: width,
+            height: height,
+            depth_or_array_layers: 1,
+        };
 
-        if data.len() == (width * height) as usize {
-            let size = wgpu::Extent3d {
-                width: width,
-                height: height,
-                depth_or_array_layers: 1,
-            };
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: format.to_wgpu(),
+            usage: match texture_type {
+                TextureType::TextureBinding => {
+                    wgpu::TextureUsages::TEXTURE_BINDING
+                        | wgpu::TextureUsages::COPY_SRC
+                        | wgpu::TextureUsages::COPY_DST
+                }
+                TextureType::RenderAttachment => {
+                    wgpu::TextureUsages::RENDER_ATTACHMENT
+                        | wgpu::TextureUsages::TEXTURE_BINDING
+                        | wgpu::TextureUsages::COPY_SRC
+                        | wgpu::TextureUsages::COPY_DST
+                }
+            },
+            view_formats: &[],
+        });
 
-            let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-                label: None,
-                size: size,
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: format.to_wgpu(),
-                usage: match texture_type {
-                    TextureType::TextureBinding => {
-                        wgpu::TextureUsages::TEXTURE_BINDING
-                            | wgpu::TextureUsages::COPY_SRC
-                            | wgpu::TextureUsages::COPY_DST
-                    }
-                    TextureType::RenderAttachment => {
-                        wgpu::TextureUsages::RENDER_ATTACHMENT
-                            | wgpu::TextureUsages::TEXTURE_BINDING
-                            | wgpu::TextureUsages::COPY_SRC
-                            | wgpu::TextureUsages::COPY_DST
-                    }
-                },
-                view_formats: &[],
-            });
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                aspect: wgpu::TextureAspect::All,
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            bytes,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(format.bytes_per_pixel() * width),
+                rows_per_image: Some(height),
+            },
+            size,
+        );
 
-            self.queue.write_texture(
-                wgpu::TexelCopyTextureInfo {
-                    aspect: wgpu::TextureAspect::All,
-                    texture: &texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                },
-                bytes,
-                wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(4 * width),
-                    rows_per_image: Some(height),
-                },
-                size,
-            );
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+            ..Default::default()
+        });
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::all(),
+            format: format.to_wgpu(),
+            width: width,
+            height: height,
+            present_mode: wgpu::PresentMode::AutoVsync,
+            desired_maximum_frame_latency: 2,
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            view_formats: Vec::new(),
+        };
 
-            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-            let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
-                address_mode_u: wgpu::AddressMode::ClampToEdge,
-                address_mode_v: wgpu::AddressMode::ClampToEdge,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Nearest,
-                mipmap_filter: wgpu::MipmapFilterMode::Nearest,
-                ..Default::default()
-            });
-            let config = wgpu::SurfaceConfiguration {
-                usage: wgpu::TextureUsages::all(),
-                format: format.to_wgpu(),
-                width: width,
-                height: height,
-                present_mode: wgpu::PresentMode::AutoVsync,
-                desired_maximum_frame_latency: 2,
-                alpha_mode: wgpu::CompositeAlphaMode::Auto,
-                view_formats: Vec::new(),
-            };
-
-            Texture::new(texture, view, sampler, config)
-        } else {
-            panic!("Input data must be same in size as width * height");
+        Texture {
+            format,
+            texture,
+            view,
+            sampler,
+            config,
         }
     }
 
@@ -502,7 +502,7 @@ impl<'a> Context {
         Ok(())
     }
 
-    /// Read data from a referenced `Texture` object.
+    /// Read the texture bytes from a referenced `Texture` object.
     ///
     /// This function is **thread-blocking**, as reading data from the GPU to the CPU is a slow, inefficient process.
     /// Only recommended for compute-use and not render loops or graphics-heavy work.
@@ -515,15 +515,15 @@ impl<'a> Context {
     /// let (width, height) = (2, 2);
     ///
     /// let ctx = Context::new();
-    /// let tex = ctx.texture(width, height, &[0.0, 0.0, 0.0, 0.0], TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
+    /// let tex = ctx.texture(width, height, &[0x32, 0x32, 0x32, 0x32], TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
     ///
-    /// assert_eq!(vec![0.0, 0.0, 0.0], ctx.read_texture(&tex));
+    /// assert_eq!(vec![0x32, 0x32, 0x32, 0x32], ctx.read_texture(&tex));
     /// ```
-    pub fn read_texture(&self, texture: &Texture) -> Vec<f32> {
+    pub fn read_texture(&self, texture: &Texture) -> Vec<u8> {
         let width = texture.config.width;
         let height = texture.config.height;
 
-        let pixel_size = std::mem::size_of::<f32>() as u32 * 4; // TODO: don't only assume RGBA f32
+        let pixel_size = texture.format.bytes_per_pixel();
         let bytes_per_row = pixel_size * width;
         let size = (bytes_per_row * height) as u64;
 
@@ -582,7 +582,7 @@ impl<'a> Context {
         // read data
         let data = buffer_slice.get_mapped_range();
 
-        let result: Vec<f32> = bytemuck::cast_slice(&data).to_vec();
+        let result: Vec<u8> = bytemuck::cast_slice(&data).to_vec();
 
         drop(data);
         staging_buffer.unmap();
