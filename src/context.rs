@@ -275,6 +275,16 @@ impl<'a> Context {
         }
     }
 
+    /// Constructs a new `VertexArray` object, where `surface` is the texture or window to use
+    /// as a configuration reference, `program` is the shader program, `vertex_buffer` is the
+    /// vertex buffer, `index_buffer` is the optional index buffer (not required), and `layout`
+    /// describes how the object is laid out.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// panic!("UNIMPLEMENTED");
+    /// ```
     pub fn vertex_array<T>(
         &self,
         surface: &T,
@@ -352,6 +362,26 @@ impl<'a> Context {
         }
     }
 
+    /// A single render pass for a `Texture` object.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use yourgpu::{Context, TextureFormat, TextureType};
+    ///
+    /// let ctx = Context::new();
+    /// let tex = ctx.texture(
+    ///     1028,
+    ///     1028,
+    ///     None,
+    ///     TextureFormat::Rgba8Unorm,
+    ///     TextureType::RenderAttachment,
+    /// );
+    ///
+    /// ctx.render_texture(&tex, |r| {
+    ///     r.clear(0.0, 1.0, 0.0, 0.0) // solid green
+    /// })
+    /// ```
     pub fn render_texture<F>(&self, texture: &Texture, f: F)
     where
         F: FnOnce(&mut RenderPass),
