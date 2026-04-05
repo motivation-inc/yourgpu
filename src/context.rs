@@ -519,7 +519,74 @@ impl<'a> Context {
     ///
     /// assert_eq!(vec![0.0, 0.0, 0.0], ctx.read_texture(&tex));
     /// ```
-    pub fn read_texture(&self, texture: &Texture) -> &[f32] {
-        &[]
+    pub fn read_texture(&self, texture: &Texture) -> Vec<f32> {
+        let width = texture.config.width;
+        let height = texture.config.height;
+
+        let pixel_size = std::mem::size_of::<f32>() as u32 * 4; // TODO: don't only assume RGBA f32
+        let bytes_per_row = pixel_size * width;
+        let size = (bytes_per_row * height) as u64;
+
+        // staging buffer
+        let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // encode copy from texture -> buffer
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &staging_buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: Some(height),
+                },
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        self.queue.submit(Some(encoder.finish()));
+
+        // map buffer
+        let buffer_slice = staging_buffer.slice(..);
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+            tx.send(result).unwrap();
+        });
+
+        let _ = self.device.poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: None,
+        });
+
+        rx.recv().unwrap().unwrap();
+
+        // read data
+        let data = buffer_slice.get_mapped_range();
+
+        let result: Vec<f32> = bytemuck::cast_slice(&data).to_vec();
+
+        drop(data);
+        staging_buffer.unmap();
+
+        result
     }
 }

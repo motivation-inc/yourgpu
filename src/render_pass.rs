@@ -1,4 +1,4 @@
-use crate::{program::Program, vertex_array::VertexArray};
+use crate::vertex_array::VertexArray;
 
 pub enum RenderOperation<'a> {
     Clear(f64, f64, f64, f64),

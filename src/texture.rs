@@ -49,7 +49,7 @@ pub struct Texture {
     pub(crate) texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,
     pub(crate) sampler: wgpu::Sampler,
-    config: wgpu::SurfaceConfiguration,
+    pub(crate) config: wgpu::SurfaceConfiguration,
 }
 
 impl Texture {
