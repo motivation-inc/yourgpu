@@ -175,8 +175,10 @@ impl<'a> Context {
         }
     }
 
-    /// Constructs a new `Texture` object, with `width` and `height`, `data` being the image data (in bytes),
+    /// Constructs a new `Texture` object, with `width` and `height`, `bytes` being the image data,
     /// and `format` being the texture format of the image.
+    ///
+    /// If `bytes` is `None`, the texture will be created as an empty buffer.
     ///
     /// # Example
     ///
@@ -186,13 +188,13 @@ impl<'a> Context {
     /// let (width, height) = (2, 2);
     ///
     /// let ctx = Context::new();
-    /// let tex = ctx.texture(width, height, &[0x32, 0x32, 0x32, 0x32], TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
+    /// let tex = ctx.texture(width, height, Some(&[0x32, 0x32, 0x32, 0x32]), TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
     /// ```
     pub fn texture(
         &self,
         width: u32,
         height: u32,
-        bytes: &[u8],
+        bytes: Option<&[u8]>,
         format: TextureFormat,
         texture_type: TextureType,
     ) -> Texture {
@@ -225,21 +227,23 @@ impl<'a> Context {
             view_formats: &[],
         });
 
-        self.queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                aspect: wgpu::TextureAspect::All,
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-            },
-            bytes,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(format.bytes_per_pixel() * width),
-                rows_per_image: Some(height),
-            },
-            size,
-        );
+        if let Some(data) = bytes {
+            self.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    aspect: wgpu::TextureAspect::All,
+                    texture: &texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                },
+                data,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(format.bytes_per_pixel() * width),
+                    rows_per_image: Some(height),
+                },
+                size,
+            );
+        }
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
