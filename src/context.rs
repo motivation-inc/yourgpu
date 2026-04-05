@@ -2,7 +2,7 @@ use crate::{
     BufferType, TextureType,
     buffer::Buffer,
     program::Program,
-    render_context::RenderContext,
+    render_pass::{RenderOperation, RenderPass},
     surface::Surface,
     texture::{Texture, TextureFormat},
     vertex_array::{VertexArray, VertexLayout},
@@ -126,8 +126,12 @@ impl<'a> Context {
     /// let ctx = Context::new();
     /// let buffer = ctx.buffer(&[0.0, 0.0, 0.0], BufferType::Vertex);
     /// ```
-    pub fn buffer(&self, data: &[f32], buffer_type: BufferType) -> Buffer {
-        let byte_size = (data.len() * std::mem::size_of::<f32>()) as u64;
+    pub fn buffer<T>(&self, data: &T, buffer_type: BufferType) -> Buffer
+    where
+        T: bytemuck::Pod,
+    {
+        let bytes = bytemuck::bytes_of(data);
+        let byte_size = (bytes.len() * std::mem::size_of::<u8>()) as u64;
 
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
@@ -155,8 +159,7 @@ impl<'a> Context {
         });
 
         // upload data
-        self.queue
-            .write_buffer(&buffer, 0, bytemuck::cast_slice(data));
+        self.queue.write_buffer(&buffer, 0, bytes);
 
         Buffer::new(buffer)
     }
@@ -174,15 +177,20 @@ impl<'a> Context {
     /// let ctx = Context::new();
     /// let tex = ctx.texture(width, height, &[0.0, 0.0, 0.0, 0.0], TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
     /// ```
-    pub fn texture(
+    pub fn texture<T>(
         &self,
         width: u32,
         height: u32,
-        data: &[f32],
+        data: &T,
         format: TextureFormat,
         texture_type: TextureType,
-    ) -> Texture {
-        if data.len() == (width * height) as usize {
+    ) -> Texture
+    where
+        T: bytemuck::Pod,
+    {
+        let bytes = bytemuck::bytes_of(data);
+
+        if bytes.len() == (width * height) as usize {
             let size = wgpu::Extent3d {
                 width: width,
                 height: height,
@@ -219,7 +227,7 @@ impl<'a> Context {
                     mip_level: 0,
                     origin: wgpu::Origin3d::ZERO,
                 },
-                bytemuck::cast_slice(data),
+                bytes,
                 wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(4 * width),
@@ -259,90 +267,129 @@ impl<'a> Context {
         &self,
         surface: &T,
         program: &Program,
-        buffer: &Buffer,
+        vertex_buffer: &Buffer,
+        index_buffer: Option<&Buffer>,
         layout: VertexLayout,
     ) -> VertexArray
     where
         T: Surface,
     {
-        // let config = surface.config();
-        //
-        // let render_pipeline_layout =
-        //     self.device
-        //         .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        //             label: None,
-        //             bind_group_layouts: &[],
-        //             immediate_size: 0,
-        //         });
+        let mut offset = 0;
+        let mut attrs = vec![];
 
-        // let fragment_shader = match fs_module {
-        //     Some(module) => Some(wgpu::FragmentState {
-        //         module: &module,
-        //         entry_point: Some("fs_main"),
-        //         targets: &[Some(wgpu::ColorTargetState {
-        //             format: config.format,
-        //             blend: Some(wgpu::BlendState::REPLACE),
-        //             write_mask: wgpu::ColorWrites::ALL,
-        //         })],
-        //         compilation_options: wgpu::PipelineCompilationOptions::default(),
-        //     }),
-        //     None => None,
-        // };
+        for attr in layout.attributes {
+            attrs.push(wgpu::VertexAttribute {
+                offset,
+                shader_location: attr.location,
+                format: attr.format.to_wgpu(),
+            });
 
-        // let render_pipeline = self
-        //     .device
-        //     .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        //         label: Some("Render Pipeline"),
-        //         layout: Some(&render_pipeline_layout),
-        //         vertex: wgpu::VertexState {
-        //             module: &vs_module,
-        //             entry_point: Some("vs_main"),
-        //             buffers: &[],
-        //             compilation_options: wgpu::PipelineCompilationOptions::default(),
-        //         },
-        //         fragment: fragment_shader,
-        //         primitive: wgpu::PrimitiveState {
-        //             topology: wgpu::PrimitiveTopology::TriangleList,
-        //             strip_index_format: None,
-        //             front_face: wgpu::FrontFace::Ccw,
-        //             cull_mode: Some(wgpu::Face::Back),
-        //             // Setting this to anything other than Fill requires Features::POLYGON_MODE_LINE
-        //             // or Features::POLYGON_MODE_POINT
-        //             polygon_mode: wgpu::PolygonMode::Fill,
-        //             // Requires Features::DEPTH_CLIP_CONTROL
-        //             unclipped_depth: false,
-        //             // Requires Features::CONSERVATIVE_RASTERIZATION
-        //             conservative: false,
-        //         },
-        //         depth_stencil: None,
-        //         multisample: wgpu::MultisampleState {
-        //             count: 1,
-        //             mask: !0,
-        //             alpha_to_coverage_enabled: false,
-        //         },
-        //         // If the pipeline will be used with a multiview render pass, this
-        //         // tells wgpu to render to just specific texture layers.
-        //         multiview_mask: None,
-        //         cache: None,
-        //     });
+            offset += attr.format.size();
+        }
 
-        VertexArray {}
+        let vertex_buffer_layout = wgpu::VertexBufferLayout {
+            array_stride: offset,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &attrs,
+        };
+
+        let pipeline_layout = self
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: None,
+                bind_group_layouts: &[],
+                immediate_size: 0,
+            });
+
+        let config = surface.config();
+
+        let pipeline = self
+            .device
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: None,
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: program.vertex_shader(),
+                    entry_point: Some("vs_main"),
+                    buffers: &[vertex_buffer_layout],
+                    compilation_options: Default::default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &program.fragment_shader().unwrap(),
+                    entry_point: Some("fs_main"),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: config.format,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    compilation_options: Default::default(),
+                }), // TODO: remove option unwrap, fragment shader is never foolproof
+                primitive: Default::default(),
+                depth_stencil: None,
+                multisample: Default::default(),
+                multiview_mask: None,
+                cache: None,
+            });
+
+        VertexArray::new(
+            pipeline,
+            vertex_buffer.inner().clone(),
+            index_buffer.map(|b| b.inner().clone()),
+        )
     }
 
-    pub fn render_texture<F>(&self, texture: &Texture, f: F)
+    pub fn render_texture<F, T>(&self, texture: &Texture, f: F)
     where
-        F: FnOnce(&mut RenderContext),
+        T: bytemuck::Pod,
+        F: FnOnce(&mut RenderPass<T>),
     {
-        let mut r = RenderContext {};
+        let mut r = RenderPass {
+            operations: Vec::new(),
+        };
 
         f(&mut r);
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        let view = &texture.view;
+
+        for operation in r.operations {
+            match operation {
+                RenderOperation::Clear(r, g, b, a) => {
+                    let _ = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: None,
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color { r, g, b, a }),
+                                store: wgpu::StoreOp::Store,
+                            },
+                            depth_slice: None,
+                        })],
+                        depth_stencil_attachment: None,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                        multiview_mask: None,
+                    });
+                }
+                RenderOperation::Draw(program, vertex_array) => {}
+                RenderOperation::SetUniform(location, data) => {}
+            }
+        }
+
+        self.queue.submit(Some(encoder.finish()));
     }
 
-    pub fn render_window<F>(&self, window: &WindowSurface, f: F)
+    pub fn render_window<F, T>(&self, window: &WindowSurface, f: F)
     where
-        F: FnOnce(&mut RenderContext),
+        T: bytemuck::Pod,
+        F: FnOnce(&mut RenderPass<T>),
     {
-        let mut r = RenderContext {};
+        let mut r = RenderPass {
+            operations: Vec::new(),
+        };
 
         f(&mut r);
     }
@@ -439,6 +486,23 @@ impl<'a> Context {
         Ok(())
     }
 
+    /// Read data from a referenced `Texture` object.
+    ///
+    /// This function is **thread-blocking**, as reading data from the GPU to the CPU is a slow, inefficient process.
+    /// Only recommended for compute-use and not render loops or graphics-heavy work.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use yourgpu::{Context, TextureFormat, TextureType};
+    ///
+    /// let (width, height) = (2, 2);
+    ///
+    /// let ctx = Context::new();
+    /// let tex = ctx.texture(width, height, &[0.0, 0.0, 0.0, 0.0], TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
+    ///
+    /// assert_eq!(vec![0.0, 0.0, 0.0], ctx.read_texture(&tex));
+    /// ```
     pub fn read_texture(&self, texture: &Texture) -> &[f32] {
         &[]
     }

@@ -46,9 +46,9 @@ pub enum TextureType {
 }
 
 pub struct Texture {
-    texture: wgpu::Texture,
-    view: wgpu::TextureView,
-    sampler: wgpu::Sampler,
+    pub(crate) texture: wgpu::Texture,
+    pub(crate) view: wgpu::TextureView,
+    pub(crate) sampler: wgpu::Sampler,
     config: wgpu::SurfaceConfiguration,
 }
 

@@ -1,7 +1,7 @@
 mod buffer;
 mod context;
 mod program;
-mod render_context;
+mod render_pass;
 mod surface;
 mod texture;
 mod vertex_array;
