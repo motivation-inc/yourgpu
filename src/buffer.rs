@@ -9,6 +9,7 @@ pub enum BufferType {
     Vertex,
     Index,
     Storage,
+    Uniform,
     CopyDst,
     CopySrc,
 }

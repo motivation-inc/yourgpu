@@ -160,6 +160,11 @@ impl<'a> Context {
                         | wgpu::BufferUsages::COPY_DST
                         | wgpu::BufferUsages::COPY_SRC
                 }
+                BufferType::Uniform => {
+                    wgpu::BufferUsages::UNIFORM
+                        | wgpu::BufferUsages::COPY_DST
+                        | wgpu::BufferUsages::COPY_SRC
+                }
                 BufferType::CopyDst => wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
                 BufferType::CopySrc => wgpu::BufferUsages::COPY_SRC,
             },
