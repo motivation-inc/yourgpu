@@ -398,7 +398,7 @@ impl<'a> Context {
             pipeline,
             vertex_buffer: vertex_buffer.buffer.clone(),
             index_buffer: index_buffer.map(|b| b.buffer.clone()),
-            vertex_count: vertex_buffer.length,
+            vertex_count: vertex_buffer.length, // TODO: handle correct vertex counts
             index_count: index_buffer.map(|b| b.length).unwrap_or(0),
         }
     }
@@ -425,7 +425,7 @@ impl<'a> Context {
     /// ```
     pub fn render_texture<F>(&self, texture: &Texture, f: F)
     where
-        F: FnOnce(&mut RenderPass),
+        F: FnOnce(&mut RenderPass<'a>),
     {
         let mut r = RenderPass {
             operations: Vec::new(),

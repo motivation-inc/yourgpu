@@ -2,7 +2,7 @@ use crate::{bind_group::BindGroup, vertex_array::VertexArray};
 
 pub(crate) enum RenderOperation<'a> {
     Clear(f64, f64, f64, f64),
-    Draw(&'a VertexArray, &'a [BindGroup]),
+    Draw(&'a VertexArray, Vec<&'a BindGroup>),
 }
 
 /// A single render pass containing render operations.
@@ -46,7 +46,7 @@ impl<'a> RenderPass<'a> {
     /// ```
     /// panic!("UNIMPLEMENTED");
     /// ```
-    pub fn draw(&mut self, vao: &'a VertexArray, bind_groups: &'a [BindGroup]) {
+    pub fn draw(&mut self, vao: &'a VertexArray, bind_groups: Vec<&'a BindGroup>) {
         self.operations
             .push(RenderOperation::Draw(&vao, bind_groups));
     }
