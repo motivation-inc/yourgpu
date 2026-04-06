@@ -1,6 +1,7 @@
 use image::{ImageBuffer, Rgba};
 use yourgpu::{
-    BufferType, Context, TextureFormat, TextureType, VertexAttributeFormat, VertexLayout,
+    BindGroupBuilder, BindGroupLayoutBuilder, BufferType, Context, TextureFormat, TextureType,
+    VertexAttributeFormat, VertexLayoutBuilder,
 };
 
 fn main() {
@@ -12,21 +13,31 @@ fn main() {
         TextureFormat::Rgba8UnormSrgb,
         TextureType::RenderAttachment,
     );
-    // let prog = ctx.program("// ...vertex shader", Some("// ...fragment shader"));
-    // let vbo = ctx.buffer(
-    //     &[0.0, 1.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0],
-    //     BufferType::Vertex,
-    // );
-    // let vao = ctx.vertex_array(
-    //     &tex,
-    //     &prog,
-    //     &vbo,
-    //     VertexLayout::new().attr("in_vert", VertexAttributeFormat::Float32x3),
-    // );
+    let prog = ctx.program("// ...vertex shader", Some("// ...fragment shader"));
+    let bind_group_layout =
+        ctx.bind_group_layout(BindGroupLayoutBuilder::new().uniform(binding, visibility));
+    let vbo = ctx.buffer(
+        &[0.0, 1.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0],
+        BufferType::Vertex,
+    );
+    let vao = ctx.vertex_array(
+        &tex,
+        &prog,
+        &vbo,
+        None,
+        VertexLayoutBuilder::new().attr(0, VertexAttributeFormat::Float32x3),
+        &[bind_group_layout],
+    );
 
     ctx.render_texture(&tex, |r| {
         r.clear(0.0, 1.0, 0.0, 1.0);
-        // r.draw(&prog, &vao);
+        r.draw(
+            &vao,
+            &vec![ctx.bind_group(
+                &bind_group_layout,
+                BindGroupBuilder::new().uniform(binding, buffer),
+            )],
+        );
     });
 
     let img =

@@ -13,5 +13,5 @@ pub use {
     buffer::BufferType,
     context::Context,
     texture::{TextureFormat, TextureType},
-    vertex_array::{VertexAttributeFormat, VertexLayout},
+    vertex_array::{VertexAttributeFormat, VertexLayoutBuilder},
 };

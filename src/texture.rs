@@ -1,6 +1,6 @@
 use crate::surface::Surface;
 
-/// A texture format for describing various texture data.
+/// Format for describing various texture data.
 pub enum TextureFormat {
     // color
     Rgba8Unorm,
@@ -60,6 +60,9 @@ pub enum TextureType {
     TextureBinding,
 }
 
+/// A texture object, containing the texture information.
+///
+/// Created using `Context::texture`.
 pub struct Texture {
     pub(crate) format: TextureFormat,
     pub(crate) texture: wgpu::Texture,

@@ -6,7 +6,7 @@ use crate::{
     render_pass::{RenderOperation, RenderPass},
     surface::Surface,
     texture::{Texture, TextureFormat},
-    vertex_array::{VertexArray, VertexLayout},
+    vertex_array::{VertexArray, VertexLayoutBuilder},
     window::WindowSurface,
 };
 use std::sync::Arc;
@@ -326,7 +326,7 @@ impl<'a> Context {
         program: &Program,
         vertex_buffer: &Buffer,
         index_buffer: Option<&Buffer>,
-        vertex_layout: VertexLayout,
+        vertex_layout: VertexLayoutBuilder,
         bind_group_layouts: &[BindGroupLayout],
     ) -> VertexArray
     where

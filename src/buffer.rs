@@ -14,9 +14,9 @@ pub enum BufferType {
     CopySrc,
 }
 
-/// A GPU allocated buffer wrapped over a `wgpu::Buffer` object.
+/// A GPU allocated buffer.
 ///
-/// This struct is best created directly from the `Context::buffer` method, as it provides a higher level API for working with buffers.
+/// Created using `Context::buffer`.
 pub struct Buffer {
     pub(crate) buffer: wgpu::Buffer,
     pub(crate) length: u32, // number of elements

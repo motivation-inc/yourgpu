@@ -32,7 +32,7 @@ pub struct BindGroupLayout {
     pub(crate) bind_group_layout: wgpu::BindGroupLayout,
 }
 
-/// A bind group layout builder object describing the bindings of a `BindGroup` object.
+/// Describes how the resources of a `BindGroup` should be laid out.
 pub struct BindGroupLayoutBuilder {
     pub(crate) entries: Vec<wgpu::BindGroupLayoutEntry>,
 }
@@ -83,7 +83,7 @@ impl BindGroupLayoutBuilder {
     }
 }
 
-/// A bind group builder object, describing how to build the bindings of a `BindGroup` object.
+/// Describes how to build the bindings of a `BindGroup` object.
 pub struct BindGroupBuilder<'a> {
     pub(crate) entries: Vec<wgpu::BindGroupEntry<'a>>,
 }

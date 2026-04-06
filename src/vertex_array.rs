@@ -1,3 +1,4 @@
+/// Formats for vertex attributes.
 pub enum VertexAttributeFormat {
     // floats
     Float32,
@@ -81,17 +82,37 @@ pub(crate) struct VertexAttribute {
     pub(crate) format: VertexAttributeFormat,
 }
 
-pub struct VertexLayout {
+/// Describes how the data of a vertex buffer should be laid out.
+pub struct VertexLayoutBuilder {
     pub(crate) attributes: Vec<VertexAttribute>,
 }
 
-impl VertexLayout {
+impl VertexLayoutBuilder {
+    /// Constructs a new vertex layout builder.
+    ///
+    /// # Example
+    /// ```
+    /// use yourgpu::VertexLayoutBuilder;
+    ///
+    /// let builder = VertexLayoutBuilder::new();
+    /// ```
     pub fn new() -> Self {
         Self {
             attributes: Vec::new(),
         }
     }
 
+    /// Appends a new attribute, where `location` is the specified location in the vertex shader, and `format`
+    /// is the format of the attribute.
+    ///
+    /// # Example
+    /// ```
+    /// use yourgpu::{VertexLayoutBuilder, VertexAttributeFormat};
+    ///
+    /// let builder = VertexLayoutBuilder::new()
+    ///                 .attr(0, VertexAttributeFormat::Float32x3);
+    ///                 .attr(1, VertexAttributeFormat::Uint32);
+    /// ```
     pub fn attr(mut self, location: u32, format: VertexAttributeFormat) -> Self {
         self.attributes.push(VertexAttribute { location, format });
 
@@ -99,6 +120,9 @@ impl VertexLayout {
     }
 }
 
+/// A vertex array object, containing the pipeline and vertex + index buffers.
+///
+/// Created using `Context::vertex_array`.
 pub struct VertexArray {
     pub(crate) pipeline: wgpu::RenderPipeline,
     pub(crate) vertex_buffer: wgpu::Buffer,
