@@ -9,7 +9,7 @@ mod vertex_array;
 mod window;
 
 pub use {
-    bind_group::{BindGroupBuilder, BindGroupLayout},
+    bind_group::{BindGroupBuilder, BindGroupLayoutBuilder},
     buffer::BufferType,
     context::Context,
     texture::{TextureFormat, TextureType},

@@ -1,6 +1,6 @@
 use crate::{
-    BindGroupLayout, BufferType, TextureType,
-    bind_group::{BindGroup, BindGroupBuilder},
+    BindGroupLayoutBuilder, BufferType, TextureType,
+    bind_group::{BindGroup, BindGroupBuilder, BindGroupLayout},
     buffer::Buffer,
     program::Program,
     render_pass::{RenderOperation, RenderPass},
@@ -87,8 +87,7 @@ impl<'a> Context {
     }
 
     /// Constructs a new `Program` object, where `vertex_shader` is the vertex shader, and `fragment_shader` is the
-    /// optional fragment shader contained in the program. `bind_group_layout` describes how the bind group is laid
-    /// out during rendering, using a `BindGroupLayout` object.
+    /// optional fragment shader contained in the program.
     ///
     /// This function requires the shader source to be valid [WebGPU Shading Language](https://www.w3.org/TR/WGSL/).
     ///
@@ -97,12 +96,7 @@ impl<'a> Context {
     /// ```
     /// panic!("UNIMPLEMENTED");
     /// ```
-    pub fn program(
-        &self,
-        vertex_shader: &str,
-        fragment_shader: Option<&str>,
-        bind_group_layout: BindGroupLayout,
-    ) -> Program {
+    pub fn program(&self, vertex_shader: &str, fragment_shader: Option<&str>) -> Program {
         let vs_module = self
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -117,32 +111,42 @@ impl<'a> Context {
                 })
         });
 
-        let bind_group_layout =
-            self.device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: None,
-                    entries: &bind_group_layout.entries,
-                });
-
         Program {
             vertex_shader: vs_module,
             fragment_shader: fs_module,
-            bind_group_layout,
         }
     }
 
-    /// Constructs a new `BindGroup` object, where `program` is the program object, and `builder`
-    /// is what data to use in the bind group (described by the bind group layout during program creation)
+    /// Constructs a new `BindGroupLayout` object, where `builder` is how the bind group data is laid out.
     ///
     /// # Example
     ///
     /// ```
     /// panic!("UNIMPLEMENTED");
     /// ```
-    pub fn bind_group(&self, program: &Program, builder: BindGroupBuilder<'a>) -> BindGroup {
+    pub fn bind_group_layout(&self, builder: BindGroupLayoutBuilder) -> BindGroupLayout {
+        BindGroupLayout {
+            bind_group_layout: self.device.create_bind_group_layout(
+                &wgpu::BindGroupLayoutDescriptor {
+                    label: None,
+                    entries: &builder.entries,
+                },
+            ),
+        }
+    }
+
+    /// Constructs a new `BindGroup` object, where `layout` is the bind group layout object, and `builder`
+    /// is what data to use in the bind group.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// panic!("UNIMPLEMENTED");
+    /// ```
+    pub fn bind_group(&self, layout: &BindGroupLayout, builder: BindGroupBuilder<'a>) -> BindGroup {
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: &program.bind_group_layout,
+            layout: &layout.bind_group_layout,
             entries: &builder.entries,
         });
 
@@ -306,9 +310,10 @@ impl<'a> Context {
     }
 
     /// Constructs a new `VertexArray` object, where `surface` is the texture or window to use
-    /// as a configuration reference, `program` is the shader program, `vertex_buffer` is the
-    /// vertex buffer, `index_buffer` is the optional index buffer (not required), and `layout`
-    /// describes how the object is laid out.
+    /// as a configuration reference, and `program` is the shader program.
+    ///
+    /// `vertex_buffer` is the vertex buffer, `index_buffer` is the optional index buffer (not required), and `vertex_layout`
+    /// describes how the vertex data is laid out. For
     ///
     /// # Example
     ///
@@ -321,7 +326,8 @@ impl<'a> Context {
         program: &Program,
         vertex_buffer: &Buffer,
         index_buffer: Option<&Buffer>,
-        layout: VertexLayout,
+        vertex_layout: VertexLayout,
+        bind_group_layouts: &[BindGroupLayout],
     ) -> VertexArray
     where
         T: Surface,
@@ -329,7 +335,7 @@ impl<'a> Context {
         let mut offset = 0;
         let mut attrs = vec![];
 
-        for attr in &layout.attributes {
+        for attr in &vertex_layout.attributes {
             attrs.push(wgpu::VertexAttribute {
                 offset,
                 shader_location: attr.location,
@@ -345,11 +351,16 @@ impl<'a> Context {
             attributes: &attrs,
         };
 
+        let bind_group_layouts: Vec<&wgpu::BindGroupLayout> = bind_group_layouts
+            .iter()
+            .map(|f| &f.bind_group_layout)
+            .collect();
+
         let pipeline_layout = self
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
-                bind_group_layouts: &[&program.bind_group_layout],
+                bind_group_layouts: &bind_group_layouts,
                 immediate_size: 0,
             });
 

@@ -25,12 +25,16 @@ pub struct BindGroup {
     pub(crate) bind_group: wgpu::BindGroup,
 }
 
-/// A bind group layout object describing the bindings of a `BindGroup` object.
 pub struct BindGroupLayout {
+    pub(crate) bind_group_layout: wgpu::BindGroupLayout,
+}
+
+/// A bind group layout builder object describing the bindings of a `BindGroup` object.
+pub struct BindGroupLayoutBuilder {
     pub(crate) entries: Vec<wgpu::BindGroupLayoutEntry>,
 }
 
-impl BindGroupLayout {
+impl BindGroupLayoutBuilder {
     pub fn new() -> Self {
         Self {
             entries: Vec::new(),
