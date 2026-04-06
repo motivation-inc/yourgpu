@@ -25,6 +25,9 @@ pub struct BindGroup {
     pub(crate) bind_group: wgpu::BindGroup,
 }
 
+/// A bind group layout object representing the layout of resources bound to the bind group.
+///
+/// Created using `Context::bind_group_layout`.
 pub struct BindGroupLayout {
     pub(crate) bind_group_layout: wgpu::BindGroupLayout,
 }
