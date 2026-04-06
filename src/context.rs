@@ -1,5 +1,6 @@
 use crate::{
-    BufferType, TextureType,
+    BindGroupLayout, BufferType, TextureType,
+    bind_group::{BindGroup, BindGroupBuilder},
     buffer::Buffer,
     program::Program,
     render_pass::{RenderOperation, RenderPass},
@@ -15,10 +16,10 @@ use winit::window::Window;
 ///
 /// This struct implements methods used for GPU operations, acting as a sort of "central hub" for GPU access and usage.
 pub struct Context {
-    instance: wgpu::Instance,
-    adapter: wgpu::Adapter,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    pub(crate) instance: wgpu::Instance,
+    pub(crate) adapter: wgpu::Adapter,
+    pub(crate) device: wgpu::Device,
+    pub(crate) queue: wgpu::Queue,
 }
 
 impl<'a> Context {
@@ -86,7 +87,8 @@ impl<'a> Context {
     }
 
     /// Constructs a new `Program` object, where `vertex_shader` is the vertex shader, and `fragment_shader` is the
-    /// optional fragment shader contained in the program.
+    /// optional fragment shader contained in the program. `bind_group_layout` describes how the bind group is laid
+    /// out during rendering, using a `BindGroupLayout` object.
     ///
     /// This function requires the shader source to be valid [WebGPU Shading Language](https://www.w3.org/TR/WGSL/).
     ///
@@ -95,7 +97,12 @@ impl<'a> Context {
     /// ```
     /// panic!("UNIMPLEMENTED");
     /// ```
-    pub fn program(&self, vertex_shader: &str, fragment_shader: Option<&str>) -> Program {
+    pub fn program(
+        &self,
+        vertex_shader: &str,
+        fragment_shader: Option<&str>,
+        bind_group_layout: BindGroupLayout,
+    ) -> Program {
         let vs_module = self
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -114,7 +121,7 @@ impl<'a> Context {
             self.device
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                     label: None,
-                    entries: &[], // no uniforms yet
+                    entries: &bind_group_layout.entries,
                 });
 
         Program {
@@ -122,6 +129,24 @@ impl<'a> Context {
             fragment_shader: fs_module,
             bind_group_layout,
         }
+    }
+
+    /// Constructs a new `BindGroup` object, where `program` is the program object, and `builder`
+    /// is what data to use in the bind group (described by the bind group layout during program creation)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// panic!("UNIMPLEMENTED");
+    /// ```
+    pub fn bind_group(&self, program: &Program, builder: BindGroupBuilder<'a>) -> BindGroup {
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &program.bind_group_layout,
+            entries: &builder.entries,
+        });
+
+        BindGroup { bind_group }
     }
 
     /// Constructs a new `Buffer` object, where `data` is an array of `f32` types.
@@ -434,9 +459,13 @@ impl<'a> Context {
 
         for operation in r.operations {
             match operation {
-                RenderOperation::Draw(vertex_array) => {
+                RenderOperation::Draw(vertex_array, bind_groups) => {
                     pass.set_pipeline(&vertex_array.pipeline);
                     pass.set_vertex_buffer(0, vertex_array.vertex_buffer.slice(..));
+
+                    for (i, bg) in bind_groups.iter().enumerate() {
+                        pass.set_bind_group(i as u32, &bg.bind_group, &[]);
+                    }
 
                     if let Some(index) = &vertex_array.index_buffer {
                         pass.set_index_buffer(index.slice(..), wgpu::IndexFormat::Uint32);

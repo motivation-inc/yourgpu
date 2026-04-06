@@ -76,7 +76,7 @@ impl VertexAttributeFormat {
     }
 }
 
-pub struct VertexAttribute {
+pub(crate) struct VertexAttribute {
     pub(crate) location: u32,
     pub(crate) format: VertexAttributeFormat,
 }
