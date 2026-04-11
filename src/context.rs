@@ -171,9 +171,13 @@ impl<'a> Context {
     /// let ctx = Context::new();
     /// let buffer = ctx.buffer(&[0.0, 0.0, 0.0], BufferType::Vertex);
     /// ```
-    pub fn buffer(&self, data: &[f32], buffer_type: BufferType) -> Buffer {
+    pub fn buffer<T>(&self, data: &[T], buffer_type: BufferType) -> Buffer
+    where
+        T: bytemuck::Pod,
+    {
         let bytes = bytemuck::cast_slice(data);
-        let byte_size = (bytes.len() * std::mem::size_of::<u8>()) as u64;
+        let byte_size = (std::mem::size_of_val(data)) as u64;
+        let element_count = data.len() as u32;
 
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
@@ -210,7 +214,8 @@ impl<'a> Context {
 
         Buffer {
             buffer,
-            length: data.len() as u32,
+            element_count,
+            byte_size,
         }
     }
 
@@ -392,9 +397,9 @@ impl<'a> Context {
             pipeline,
             vertex_buffer: vertex_buffer.buffer.clone(),
             index_buffer: index_buffer.map(|b| b.buffer.clone()),
-            vertex_count: (vertex_buffer.length * 4) / offset as u32,
+            vertex_count: (vertex_buffer.byte_size / offset) as u32,
             index_count: index_buffer
-                .map(|b| (b.length * 4) / offset as u32)
+                .map(|b| (b.byte_size / offset) as u32)
                 .unwrap_or(0),
         }
     }
