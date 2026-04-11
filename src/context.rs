@@ -12,6 +12,11 @@ use crate::{
 use std::sync::Arc;
 use winit::window::Window;
 
+fn align_to_256(n: u32) -> u32 {
+    let align = 256;
+    ((n + align - 1) / align) * align
+}
+
 /// A GPU context object, containing a `wgpu::Instance` and `wgpu::Device`.
 ///
 /// This struct implements methods used for GPU operations, acting as a sort of "central hub" for GPU access and usage.
@@ -281,9 +286,9 @@ impl<'a> Context {
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Nearest,
             mipmap_filter: wgpu::MipmapFilterMode::Nearest,
@@ -387,8 +392,10 @@ impl<'a> Context {
             pipeline,
             vertex_buffer: vertex_buffer.buffer.clone(),
             index_buffer: index_buffer.map(|b| b.buffer.clone()),
-            vertex_count: vertex_buffer.length, // TODO: handle correct vertex counts
-            index_count: index_buffer.map(|b| b.length).unwrap_or(0),
+            vertex_count: (vertex_buffer.length * 4) / offset as u32,
+            index_count: index_buffer
+                .map(|b| (b.length * 4) / offset as u32)
+                .unwrap_or(0),
         }
     }
 
@@ -603,7 +610,7 @@ impl<'a> Context {
         let width = texture.width;
         let height = texture.height;
 
-        let bytes_per_row = width * texture.format.bytes_per_pixel();
+        let bytes_per_row = align_to_256(width * texture.format.bytes_per_pixel());
         let size = (bytes_per_row * height) as u64;
 
         // staging buffer
@@ -661,7 +668,16 @@ impl<'a> Context {
         // read data
         let data = buffer_slice.get_mapped_range();
 
-        let result: Vec<u8> = bytemuck::cast_slice(&data).to_vec();
+        let padded = bytes_per_row as usize;
+        let unpadded = (texture.width * texture.format.bytes_per_pixel()) as usize;
+
+        let mut result = Vec::with_capacity(unpadded * texture.height as usize);
+
+        for row in 0..texture.height as usize {
+            let start = row * padded;
+            let end = start + unpadded;
+            result.extend_from_slice(&data[start..end]);
+        }
 
         drop(data);
         staging_buffer.unmap();
