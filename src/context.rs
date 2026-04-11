@@ -561,7 +561,7 @@ impl<'a> Context {
     ///
     /// assert_eq!(vec![0.0, 0.0, 0.0], ctx.read_buffer(&buffer));
     /// ```
-    pub fn read_buffer(&self, buffer: &Buffer) -> Vec<f32> {
+    pub fn read_buffer(&self, buffer: &Buffer) -> Vec<u8> {
         let size = buffer.buffer.size();
 
         // create staging buffer
@@ -598,7 +598,7 @@ impl<'a> Context {
         // read data
         let data = buffer_slice.get_mapped_range();
 
-        let result: Vec<f32> = bytemuck::cast_slice(&data).to_vec();
+        let result: Vec<u8> = bytemuck::cast_slice(&data).to_vec();
 
         drop(data);
         staging_buffer.unmap();
@@ -647,7 +647,7 @@ impl<'a> Context {
     /// let (width, height) = (2, 2);
     ///
     /// let ctx = Context::new();
-    /// let tex = ctx.texture(width, height, &[0x32, 0x32, 0x32, 0x32], TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
+    /// let tex = ctx.texture(width, height, Some(&[0x32, 0x32, 0x32, 0x32]), TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
     ///
     /// assert_eq!(vec![0x32, 0x32, 0x32, 0x32], ctx.read_texture(&tex));
     /// ```
