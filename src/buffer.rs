@@ -19,6 +19,5 @@ pub enum BufferType {
 /// Created using `Context::buffer`.
 pub struct Buffer {
     pub(crate) buffer: wgpu::Buffer,
-    pub(crate) element_count: u32,
     pub(crate) byte_size: u64,
 }

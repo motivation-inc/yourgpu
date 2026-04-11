@@ -166,7 +166,6 @@ impl<'a> Context {
     {
         let bytes = bytemuck::cast_slice(data);
         let byte_size = (std::mem::size_of_val(data)) as u64;
-        let element_count = data.len() as u32;
 
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
@@ -201,11 +200,7 @@ impl<'a> Context {
         // upload data
         self.queue.write_buffer(&buffer, 0, bytes);
 
-        Buffer {
-            buffer,
-            element_count,
-            byte_size,
-        }
+        Buffer { buffer, byte_size }
     }
 
     /// Constructs a new `Texture` object, with `width` and `height`, `bytes` being the image data,
@@ -319,21 +314,21 @@ impl<'a> Context {
     where
         T: Surface,
     {
-        let mut offset = 0;
-        let mut attrs = vec![];
+        let mut stride = 0;
+        let mut attrs = Vec::new();
 
         for attr in &vertex_layout.attributes {
             attrs.push(wgpu::VertexAttribute {
-                offset,
-                shader_location: attr.location,
                 format: attr.format.to_wgpu(),
+                offset: stride,
+                shader_location: attr.location,
             });
 
-            offset += attr.format.size();
+            stride += attr.format.size();
         }
 
         let vertex_buffer_layout = wgpu::VertexBufferLayout {
-            array_stride: offset,
+            array_stride: stride,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &attrs,
         };
@@ -359,7 +354,10 @@ impl<'a> Context {
                     })],
                     compilation_options: Default::default(),
                 }), // TODO: remove option unwrap, fragment shader is never foolproof
-                primitive: Default::default(),
+                primitive: wgpu::PrimitiveState {
+                    cull_mode: None,
+                    ..Default::default()
+                },
                 depth_stencil: None,
                 multisample: Default::default(),
                 multiview_mask: None,
@@ -370,10 +368,8 @@ impl<'a> Context {
             pipeline,
             vertex_buffer: vertex_buffer.buffer.clone(),
             index_buffer: index_buffer.map(|b| b.buffer.clone()),
-            vertex_count: (vertex_buffer.byte_size / offset) as u32, // TODO: fix vertex / index count inaccuracies
-            index_count: index_buffer
-                .map(|b| (b.byte_size / offset) as u32)
-                .unwrap_or(0),
+            vertex_count: (vertex_buffer.byte_size / stride) as u32,
+            index_count: index_buffer.map(|b| (b.byte_size / 4) as u32).unwrap_or(0), // index buffer data is a u32
         }
     }
 
@@ -514,8 +510,8 @@ impl<'a> Context {
                     });
 
                     pass.set_pipeline(&vertex_array.pipeline);
-                    pass.set_vertex_buffer(0, vertex_array.vertex_buffer.slice(..));
                     pass.set_bind_group(0, &bind_group, &[]);
+                    pass.set_vertex_buffer(0, vertex_array.vertex_buffer.slice(..));
 
                     if let Some(index) = &vertex_array.index_buffer {
                         pass.set_index_buffer(index.slice(..), wgpu::IndexFormat::Uint32);

@@ -8,8 +8,8 @@ fn main() {
     let ctx = Context::new();
 
     let tex = ctx.texture(
-        1028,
-        1028,
+        1920,
+        1920,
         None,
         TextureFormat::Rgba8Unorm,
         TextureType::RenderAttachment,
@@ -41,7 +41,7 @@ fn main() {
     let prog = ctx.program(
         vertex_shader,
         Some(fragment_shader),
-        BindingBuilder::new().uniform("uniform_1", 0),
+        BindingBuilder::new().uniform("u_color", 0),
     );
 
     // Create a uniform buffer (RGBA = orange-ish)
@@ -61,14 +61,14 @@ fn main() {
     );
 
     ctx.render_texture(&prog, &tex, |r| {
-        r.clear(0.0, 1.0, 0.0, 1.0);
-        r.set_uniform("uniform_1", &color_buffer);
+        r.clear(0.0, 0.0, 0.0, 1.0);
+        r.set_uniform("u_color", &color_buffer);
 
         r.draw(&vao);
     });
 
     let img =
-        ImageBuffer::<Rgba<u8>, _>::from_raw(1028, 1028, ctx.read_texture(&tex).to_vec()).unwrap();
+        ImageBuffer::<Rgba<u8>, _>::from_raw(1920, 1920, ctx.read_texture(&tex).to_vec()).unwrap();
 
     img.save("output.png").unwrap();
 }
