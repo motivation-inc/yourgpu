@@ -81,7 +81,7 @@ impl<'a> Context {
         };
 
         WindowSurface {
-            surface: surface,
+            window_surface: surface,
             config: config,
         }
     }
@@ -272,7 +272,7 @@ impl<'a> Context {
                 data,
                 wgpu::TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(((format.bytes_per_pixel() * width + 255) / 256) * 256),
+                    bytes_per_row: Some(format.bytes_per_pixel() * width),
                     rows_per_image: Some(height),
                 },
                 size,
@@ -289,23 +289,14 @@ impl<'a> Context {
             mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::all(),
-            format: format.to_wgpu(),
-            width: width,
-            height: height,
-            present_mode: wgpu::PresentMode::AutoVsync,
-            desired_maximum_frame_latency: 2,
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
-            view_formats: Vec::new(),
-        };
 
         Texture {
             format,
             texture,
             view,
             sampler,
-            config,
+            width,
+            height,
         }
     }
 
@@ -364,8 +355,6 @@ impl<'a> Context {
                 immediate_size: 0,
             });
 
-        let config = surface.config();
-
         let pipeline = self
             .device
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -381,7 +370,7 @@ impl<'a> Context {
                     module: &program.fragment_shader.as_ref().unwrap(),
                     entry_point: Some("fs_main"),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: config.format,
+                        format: surface.format(),
                         blend: Some(wgpu::BlendState::REPLACE),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
@@ -611,10 +600,10 @@ impl<'a> Context {
     /// assert_eq!(vec![0x32, 0x32, 0x32, 0x32], ctx.read_texture(&tex));
     /// ```
     pub fn read_texture(&self, texture: &Texture) -> Vec<u8> {
-        let width = texture.config.width;
-        let height = texture.config.height;
+        let width = texture.width;
+        let height = texture.height;
 
-        let bytes_per_row = ((width * texture.format.bytes_per_pixel() + 255) / 256) * 256;
+        let bytes_per_row = width * texture.format.bytes_per_pixel();
         let size = (bytes_per_row * height) as u64;
 
         // staging buffer

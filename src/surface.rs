@@ -1,3 +1,3 @@
 pub trait Surface {
-    fn config(&self) -> &wgpu::SurfaceConfiguration;
+    fn format(&self) -> wgpu::TextureFormat;
 }

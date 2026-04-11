@@ -22,7 +22,7 @@ pub enum TextureFormat {
 }
 
 impl TextureFormat {
-    pub fn to_wgpu(&self) -> wgpu::TextureFormat {
+    pub(crate) fn to_wgpu(&self) -> wgpu::TextureFormat {
         match self {
             // color
             TextureFormat::Rgba8Unorm => wgpu::TextureFormat::Rgba8Unorm,
@@ -68,11 +68,12 @@ pub struct Texture {
     pub(crate) texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,
     pub(crate) sampler: wgpu::Sampler,
-    pub(crate) config: wgpu::SurfaceConfiguration,
+    pub(crate) height: u32,
+    pub(crate) width: u32,
 }
 
 impl Surface for Texture {
-    fn config(&self) -> &wgpu::SurfaceConfiguration {
-        &self.config
+    fn format(&self) -> wgpu::TextureFormat {
+        self.format.to_wgpu()
     }
 }
