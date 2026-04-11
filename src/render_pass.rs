@@ -39,24 +39,20 @@ impl<'a> RenderPass<'a> {
         self.operations.push(RenderOperation::Clear(r, g, b, a));
     }
 
-    /// Draw operation for the `vao` object (`VertexArray`) and specified `bind_groups`.
-    ///
-    /// Each bind group in `bind_groups` is bound to the render pass.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// panic!("UNIMPLEMENTED");
-    /// ```
+    /// Draw operation for `vao` (a `VertexArray` object.)
     pub fn draw(&mut self, vao: &'a VertexArray) {
         self.operations.push(RenderOperation::Draw(&vao));
     }
 
+    /// Set uniform operation, where `name` is the program binding name, and `buffer` is the data to set the
+    /// uniform binding to.
     pub fn set_uniform(&mut self, name: &str, buffer: &'a Buffer) {
         self.operations
             .push(RenderOperation::SetUniform(name.to_string(), buffer));
     }
 
+    /// Set texture operation, where `name` is the program binding name, and `texture` is the data to set the
+    /// texture binding to.
     pub fn set_texture(&mut self, name: &str, texture: &'a Texture) {
         self.operations
             .push(RenderOperation::SetTexture(name.to_string(), texture));

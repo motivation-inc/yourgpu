@@ -1,5 +1,5 @@
 use crate::{
-    BindGroupLayoutBuilder, BufferType, TextureType,
+    BindingBuilder, BufferType, TextureType,
     buffer::Buffer,
     program::Program,
     render_pass::{RenderOperation, RenderPass},
@@ -104,7 +104,7 @@ impl<'a> Context {
         &self,
         vertex_shader: &str,
         fragment_shader: Option<&str>,
-        binding: BindGroupLayoutBuilder,
+        binding: BindingBuilder,
     ) -> Program {
         let vs_module = self
             .device
@@ -300,10 +300,8 @@ impl<'a> Context {
     }
 
     /// Constructs a new `VertexArray` object, where `surface` is the texture or window to use
-    /// as a configuration reference, and `program` is the shader program.
-    ///
-    /// `vertex_buffer` is the vertex buffer, `index_buffer` is the optional index buffer (not required), and `vertex_layout`
-    /// describes how the vertex data is laid out. For
+    /// as a format, `program` is the shader program, `vertex_buffer` is a vertex buffer, `index_buffer`
+    /// is the optional index buffer, and `vertex_layout` describes the vertex data.
     ///
     /// # Example
     ///

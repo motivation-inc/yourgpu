@@ -1,4 +1,4 @@
-mod bind_group;
+mod binding;
 mod buffer;
 mod context;
 mod program;
@@ -9,7 +9,7 @@ mod vertex_array;
 mod window;
 
 pub use {
-    bind_group::BindGroupLayoutBuilder,
+    binding::BindingBuilder,
     buffer::BufferType,
     context::Context,
     texture::{TextureFormat, TextureType},

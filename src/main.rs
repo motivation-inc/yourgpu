@@ -1,6 +1,6 @@
 use image::{ImageBuffer, Rgba};
 use yourgpu::{
-    BindGroupLayoutBuilder, BufferType, Context, TextureFormat, TextureType, VertexAttributeFormat,
+    BindingBuilder, BufferType, Context, TextureFormat, TextureType, VertexAttributeFormat,
     VertexLayoutBuilder,
 };
 
@@ -41,7 +41,7 @@ fn main() {
     let prog = ctx.program(
         vertex_shader,
         Some(fragment_shader),
-        BindGroupLayoutBuilder::new().uniform("uniform_1", 0),
+        BindingBuilder::new().uniform("uniform_1", 0),
     );
 
     // Create a uniform buffer (RGBA = orange-ish)
