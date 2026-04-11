@@ -1,8 +1,10 @@
-use crate::{bind_group::BindGroup, vertex_array::VertexArray};
+use crate::{buffer::Buffer, texture::Texture, vertex_array::VertexArray};
 
 pub(crate) enum RenderOperation<'a> {
     Clear(f64, f64, f64, f64),
-    Draw(&'a VertexArray, Vec<&'a BindGroup>),
+    Draw(&'a VertexArray),
+    SetUniform(String, &'a Buffer),
+    SetTexture(String, &'a Texture),
 }
 
 /// A single render pass containing render operations.
@@ -46,8 +48,17 @@ impl<'a> RenderPass<'a> {
     /// ```
     /// panic!("UNIMPLEMENTED");
     /// ```
-    pub fn draw(&mut self, vao: &'a VertexArray, bind_groups: Vec<&'a BindGroup>) {
+    pub fn draw(&mut self, vao: &'a VertexArray) {
+        self.operations.push(RenderOperation::Draw(&vao));
+    }
+
+    pub fn set_uniform(&mut self, name: &str, buffer: &'a Buffer) {
         self.operations
-            .push(RenderOperation::Draw(&vao, bind_groups));
+            .push(RenderOperation::SetUniform(name.to_string(), buffer));
+    }
+
+    pub fn set_texture(&mut self, name: &str, texture: &'a Texture) {
+        self.operations
+            .push(RenderOperation::SetTexture(name.to_string(), texture));
     }
 }

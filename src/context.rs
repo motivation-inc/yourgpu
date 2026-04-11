@@ -1,6 +1,5 @@
 use crate::{
     BindGroupLayoutBuilder, BufferType, TextureType,
-    bind_group::{BindGroup, BindGroupBuilder, BindGroupLayout},
     buffer::Buffer,
     program::Program,
     render_pass::{RenderOperation, RenderPass},
@@ -9,7 +8,7 @@ use crate::{
     vertex_array::{VertexArray, VertexLayoutBuilder},
     window::WindowSurface,
 };
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use winit::window::Window;
 
 fn align_to_256(n: u32) -> u32 {
@@ -101,67 +100,57 @@ impl<'a> Context {
     /// ```
     /// panic!("UNIMPLEMENTED");
     /// ```
-    pub fn program(&self, vertex_shader: &str, fragment_shader: Option<&str>) -> Program {
+    pub fn program(
+        &self,
+        vertex_shader: &str,
+        fragment_shader: Option<&str>,
+        binding: BindGroupLayoutBuilder,
+    ) -> Program {
         let vs_module = self
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("vertex shader"),
+                label: None,
                 source: wgpu::ShaderSource::Wgsl(vertex_shader.into()),
             });
         let fs_module = fragment_shader.map(|fs| {
             self.device
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("fragment shader"),
+                    label: None,
                     source: wgpu::ShaderSource::Wgsl(fs.into()),
                 })
         });
 
+        let bind_group_layout =
+            self.device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: None,
+                    entries: &binding
+                        .entries
+                        .values()
+                        .map(|b| b.to_owned())
+                        .collect::<Vec<wgpu::BindGroupLayoutEntry>>(),
+                });
+        let pipeline_layout = self
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: None,
+                bind_group_layouts: &[&bind_group_layout],
+                immediate_size: 0,
+            });
+
         Program {
             vertex_shader: vs_module,
             fragment_shader: fs_module,
+            bind_group_layout,
+            pipeline_layout,
+            bindings: binding.entries,
         }
     }
 
-    /// Constructs a new `BindGroupLayout` object, where `builder` is how the bind group data is laid out.
+    /// Constructs a new `Buffer` object, where `data` is a type that implements `bytemuck::Pod`.
     ///
-    /// # Example
-    ///
-    /// ```
-    /// panic!("UNIMPLEMENTED");
-    /// ```
-    pub fn bind_group_layout(&self, builder: BindGroupLayoutBuilder) -> BindGroupLayout {
-        BindGroupLayout {
-            bind_group_layout: self.device.create_bind_group_layout(
-                &wgpu::BindGroupLayoutDescriptor {
-                    label: None,
-                    entries: &builder.entries,
-                },
-            ),
-        }
-    }
-
-    /// Constructs a new `BindGroup` object, where `layout` is the bind group layout object, and `builder`
-    /// is what data to use in the bind group.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// panic!("UNIMPLEMENTED");
-    /// ```
-    pub fn bind_group(&self, layout: &BindGroupLayout, builder: BindGroupBuilder<'a>) -> BindGroup {
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: &layout.bind_group_layout,
-            entries: &builder.entries,
-        });
-
-        BindGroup { bind_group }
-    }
-
-    /// Constructs a new `Buffer` object, where `data` is an array of `f32` types.
-    ///
-    /// Buffer objects are wgpu objects that store an array of unformatted memory allocated on the GPU, and are used for
-    /// GPU-based data allocations - such as vertex information, image pixels, etc.
+    /// Buffer objects store an array of unformatted memory allocated on the GPU, and are used for
+    /// GPU-based data allocations.
     ///
     /// # Example
     ///
@@ -222,7 +211,7 @@ impl<'a> Context {
     /// Constructs a new `Texture` object, with `width` and `height`, `bytes` being the image data,
     /// and `format` being the texture format of the image.
     ///
-    /// If `bytes` is `None`, the texture will be created as an empty buffer.
+    /// If `bytes` is `None`, the texture will be created as an empty texture buffer.
     ///
     /// # Example
     ///
@@ -328,7 +317,6 @@ impl<'a> Context {
         vertex_buffer: &Buffer,
         index_buffer: Option<&Buffer>,
         vertex_layout: VertexLayoutBuilder,
-        bind_group_layouts: &[BindGroupLayout],
     ) -> VertexArray
     where
         T: Surface,
@@ -352,24 +340,11 @@ impl<'a> Context {
             attributes: &attrs,
         };
 
-        let bind_group_layouts: Vec<&wgpu::BindGroupLayout> = bind_group_layouts
-            .iter()
-            .map(|f| &f.bind_group_layout)
-            .collect();
-
-        let pipeline_layout = self
-            .device
-            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: None,
-                bind_group_layouts: &bind_group_layouts,
-                immediate_size: 0,
-            });
-
         let pipeline = self
             .device
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: None,
-                layout: Some(&pipeline_layout),
+                layout: Some(&program.pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &program.vertex_shader,
                     entry_point: Some("vs_main"),
@@ -424,7 +399,7 @@ impl<'a> Context {
     ///     r.clear(0.0, 1.0, 0.0, 1.0) // solid green
     /// })
     /// ```
-    pub fn render_texture<F>(&self, texture: &Texture, f: F)
+    pub fn render_texture<F>(&self, program: &Program, texture: &Texture, f: F)
     where
         F: FnOnce(&mut RenderPass<'a>),
     {
@@ -469,15 +444,80 @@ impl<'a> Context {
             multiview_mask: None,
         });
 
+        // which binding names are actually defined in the program
+        let valid_binding_names = program
+            .bindings
+            .keys()
+            .map(|b| b.to_owned())
+            .collect::<Vec<String>>();
+        let mut buffers: HashMap<String, &'a Buffer> = HashMap::new();
+        let mut textures: HashMap<String, &'a Texture> = HashMap::new();
+
         for operation in r.operations {
             match operation {
-                RenderOperation::Draw(vertex_array, bind_groups) => {
+                RenderOperation::SetUniform(name, buffer) => {
+                    if !valid_binding_names.contains(&name) {
+                        panic!("Unknown program binding name: '{name}'")
+                    }
+
+                    buffers.insert(name, buffer);
+                }
+                RenderOperation::SetTexture(name, texture) => {
+                    if !valid_binding_names.contains(&name) {
+                        panic!("Unknown program binding name: '{name}'")
+                    }
+
+                    textures.insert(name, texture);
+                }
+                RenderOperation::Draw(vertex_array) => {
+                    let entries: Vec<_> = program
+                        .bindings
+                        .iter()
+                        .map(|(name, binding)| match binding.ty {
+                            wgpu::BindingType::Buffer {
+                                ty,
+                                has_dynamic_offset,
+                                min_binding_size,
+                            } => {
+                                let buffer = buffers.get(name).unwrap();
+                                wgpu::BindGroupEntry {
+                                    binding: binding.binding,
+                                    resource: buffer.buffer.as_entire_binding(),
+                                }
+                            }
+                            wgpu::BindingType::Texture {
+                                sample_type,
+                                view_dimension,
+                                multisampled,
+                            } => {
+                                let tex = textures.get(name).unwrap();
+                                wgpu::BindGroupEntry {
+                                    binding: binding.binding,
+                                    resource: wgpu::BindingResource::TextureView(&tex.view),
+                                }
+                            }
+                            wgpu::BindingType::Sampler(_) => {
+                                let tex = textures.get(name).unwrap();
+                                wgpu::BindGroupEntry {
+                                    binding: binding.binding,
+                                    resource: wgpu::BindingResource::Sampler(&tex.sampler),
+                                }
+                            }
+                            _ => {
+                                panic!("Unknown binding type.")
+                            }
+                        })
+                        .collect();
+
+                    let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: None,
+                        layout: &program.bind_group_layout,
+                        entries: &entries,
+                    });
+
                     pass.set_pipeline(&vertex_array.pipeline);
                     pass.set_vertex_buffer(0, vertex_array.vertex_buffer.slice(..));
-
-                    for (i, bg) in bind_groups.iter().enumerate() {
-                        pass.set_bind_group(i as u32, &bg.bind_group, &[]);
-                    }
+                    pass.set_bind_group(0, &bind_group, &[]);
 
                     if let Some(index) = &vertex_array.index_buffer {
                         pass.set_index_buffer(index.slice(..), wgpu::IndexFormat::Uint32);

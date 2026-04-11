@@ -1,43 +1,70 @@
 use image::{ImageBuffer, Rgba};
 use yourgpu::{
-    BindGroupBuilder, BindGroupLayoutBuilder, BufferType, Context, TextureFormat, TextureType,
-    VertexAttributeFormat, VertexLayoutBuilder,
+    BindGroupLayoutBuilder, BufferType, Context, TextureFormat, TextureType, VertexAttributeFormat,
+    VertexLayoutBuilder,
 };
 
 fn main() {
     let ctx = Context::new();
+
     let tex = ctx.texture(
         1028,
         1028,
         None,
-        TextureFormat::Rgba8UnormSrgb,
+        TextureFormat::Rgba8Unorm,
         TextureType::RenderAttachment,
     );
-    let prog = ctx.program("// ...vertex shader", Some("// ...fragment shader"));
-    let bind_group_layout =
-        ctx.bind_group_layout(BindGroupLayoutBuilder::new().uniform(binding, visibility));
+
+    // Vertex shader (pass through)
+    let vertex_shader = r#"
+        @vertex
+        fn vs_main(@location(0) position: vec3<f32>) -> @builtin(position) vec4<f32> {
+            return vec4<f32>(position, 1.0);
+        }
+    "#;
+
+    // Fragment shader reads a uniform color
+    let fragment_shader = r#"
+        struct Color {
+            value: vec4<f32>,
+        };
+
+        @group(0) @binding(0)
+        var<uniform> u_color: Color;
+
+        @fragment
+        fn fs_main() -> @location(0) vec4<f32> {
+            return u_color.value;
+        }
+    "#;
+
+    let prog = ctx.program(
+        vertex_shader,
+        Some(fragment_shader),
+        BindGroupLayoutBuilder::new().uniform("uniform_1", 0),
+    );
+
+    // Create a uniform buffer (RGBA = orange-ish)
+    let color_buffer = ctx.buffer(&[1.0_f32, 0.5, 0.0, 1.0], BufferType::Uniform);
+
     let vbo = ctx.buffer(
-        &[0.0, 1.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0],
+        &[0.0, 0.6, 0.0, -0.6, -0.6, 0.0, 0.6, -0.6, 0.0],
         BufferType::Vertex,
     );
+
     let vao = ctx.vertex_array(
         &tex,
         &prog,
         &vbo,
         None,
         VertexLayoutBuilder::new().attr(0, VertexAttributeFormat::Float32x3),
-        &[bind_group_layout],
     );
 
-    ctx.render_texture(&tex, |r| {
+    ctx.render_texture(&prog, &tex, |r| {
         r.clear(0.0, 1.0, 0.0, 1.0);
-        r.draw(
-            &vao,
-            &vec![ctx.bind_group(
-                &bind_group_layout,
-                BindGroupBuilder::new().uniform(binding, buffer),
-            )],
-        );
+        r.set_uniform("uniform_1", &color_buffer);
+
+        r.draw(&vao);
     });
 
     let img =
