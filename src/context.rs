@@ -397,7 +397,7 @@ impl<'a> Context {
             pipeline,
             vertex_buffer: vertex_buffer.buffer.clone(),
             index_buffer: index_buffer.map(|b| b.buffer.clone()),
-            vertex_count: (vertex_buffer.byte_size / offset) as u32,
+            vertex_count: (vertex_buffer.byte_size / offset) as u32, // TODO: fix vertex / index count inaccuracies
             index_count: index_buffer
                 .map(|b| (b.byte_size / offset) as u32)
                 .unwrap_or(0),
