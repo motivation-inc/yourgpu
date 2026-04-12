@@ -29,7 +29,7 @@ pub struct Context {
 impl<'a> Context {
     /// Constructs a new `Context` object with a primary-preferred backend (Vulkan, Metal, OpenGL, or DX12).
     ///
-    /// This function is **thread-blocking**, as gaining access to GPU devices is not instantaneous.
+    /// This function is **thread-blocking**, as gaining access to a GPU context is not instantaneous.
     ///
     /// # Example
     ///
@@ -147,10 +147,10 @@ impl<'a> Context {
         }
     }
 
-    /// Constructs a new `Buffer` object, where `data` is a type that implements `bytemuck::Pod`.
+    /// Constructs a new `Buffer` object, where `data` is an array of data.
     ///
-    /// Buffer objects store an array of unformatted memory allocated on the GPU, and are used for
-    /// GPU-based data allocations.
+    /// `Buffer` objects store an array of unformatted memory allocated on the GPU, and are used for
+    /// GPU-based data storage.
     ///
     /// # Example
     ///
@@ -206,7 +206,7 @@ impl<'a> Context {
     /// Constructs a new `Texture` object, with `width` and `height`, `bytes` being the image data,
     /// and `format` being the texture format of the image.
     ///
-    /// If `bytes` is `None`, the texture will be created as an empty texture buffer.
+    /// If `bytes` is `None`, the texture will be created as an empty texture object.
     ///
     /// # Example
     ///
