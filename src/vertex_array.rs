@@ -124,7 +124,8 @@ impl VertexLayoutBuilder {
 ///
 /// Created using `Context::vertex_array`.
 pub struct VertexArray {
-    pub(crate) pipeline: wgpu::RenderPipeline,
+    pub(crate) stride: u64,
+    pub(crate) attributes: Vec<wgpu::VertexAttribute>,
     pub(crate) vertex_buffer: wgpu::Buffer,
     pub(crate) index_buffer: Option<wgpu::Buffer>,
     pub(crate) vertex_count: u32,

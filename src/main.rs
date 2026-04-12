@@ -18,7 +18,7 @@ fn main() {
     // Vertex shader (pass through)
     let vertex_shader = r#"
         @vertex
-        fn vs_main(@location(0) position: vec3<f32>) -> @builtin(position) vec4<f32> {
+        fn vs(@location(0) position: vec3<f32>) -> @builtin(position) vec4<f32> {
             return vec4<f32>(position, 1.0);
         }
     "#;
@@ -33,7 +33,7 @@ fn main() {
         var<uniform> u_color: Color;
 
         @fragment
-        fn fs_main() -> @location(0) vec4<f32> {
+        fn fs() -> @location(0) vec4<f32> {
             return u_color.value;
         }
     "#;
@@ -53,8 +53,6 @@ fn main() {
     );
 
     let vao = ctx.vertex_array(
-        &tex,
-        &prog,
         &vbo,
         None,
         VertexLayoutBuilder::new().attr(0, VertexAttributeFormat::Float32x3),

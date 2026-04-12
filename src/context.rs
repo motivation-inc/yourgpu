@@ -84,9 +84,10 @@ impl<'a> Context {
             desired_maximum_frame_latency: 2,
         };
 
+        surface.configure(&self.device, &config);
+
         WindowSurface {
             window_surface: surface,
-            config: config,
         }
     }
 
@@ -294,8 +295,7 @@ impl<'a> Context {
         }
     }
 
-    /// Constructs a new `VertexArray` object, where `surface` is the texture or window to use
-    /// as a format, `program` is the shader program, `vertex_buffer` is a vertex buffer, `index_buffer`
+    /// Constructs a new `VertexArray` object, where `vertex_buffer` is a vertex buffer, `index_buffer`
     /// is the optional index buffer, and `vertex_layout` describes the vertex data.
     ///
     /// # Example
@@ -303,22 +303,17 @@ impl<'a> Context {
     /// ```
     /// panic!("UNIMPLEMENTED");
     /// ```
-    pub fn vertex_array<T>(
+    pub fn vertex_array(
         &self,
-        surface: &T,
-        program: &Program,
         vertex_buffer: &Buffer,
         index_buffer: Option<&Buffer>,
         vertex_layout: VertexLayoutBuilder,
-    ) -> VertexArray
-    where
-        T: Surface,
-    {
+    ) -> VertexArray {
         let mut stride = 0;
-        let mut attrs = Vec::new();
+        let mut attributes = Vec::new();
 
         for attr in &vertex_layout.attributes {
-            attrs.push(wgpu::VertexAttribute {
+            attributes.push(wgpu::VertexAttribute {
                 format: attr.format.to_wgpu(),
                 offset: stride,
                 shader_location: attr.location,
@@ -327,45 +322,9 @@ impl<'a> Context {
             stride += attr.format.size();
         }
 
-        let vertex_buffer_layout = wgpu::VertexBufferLayout {
-            array_stride: stride,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &attrs,
-        };
-
-        let pipeline = self
-            .device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: None,
-                layout: Some(&program.pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &program.vertex_shader,
-                    entry_point: Some("vs_main"),
-                    buffers: &[vertex_buffer_layout],
-                    compilation_options: Default::default(),
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &program.fragment_shader.as_ref().unwrap(),
-                    entry_point: Some("fs_main"),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: surface.format(),
-                        blend: Some(wgpu::BlendState::REPLACE),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                    compilation_options: Default::default(),
-                }), // TODO: remove option unwrap, fragment shader is never foolproof
-                primitive: wgpu::PrimitiveState {
-                    cull_mode: None,
-                    ..Default::default()
-                },
-                depth_stencil: None,
-                multisample: Default::default(),
-                multiview_mask: None,
-                cache: None,
-            });
-
         VertexArray {
-            pipeline,
+            stride,
+            attributes,
             vertex_buffer: vertex_buffer.buffer.clone(),
             index_buffer: index_buffer.map(|b| b.buffer.clone()),
             vertex_count: (vertex_buffer.byte_size / stride) as u32,
@@ -469,9 +428,9 @@ impl<'a> Context {
                         .iter()
                         .map(|(name, binding)| match binding.ty {
                             wgpu::BindingType::Buffer {
-                                ty,
-                                has_dynamic_offset,
-                                min_binding_size,
+                                ty: _,
+                                has_dynamic_offset: _,
+                                min_binding_size: _,
                             } => {
                                 let buffer = buffers.get(name).unwrap();
                                 wgpu::BindGroupEntry {
@@ -480,9 +439,9 @@ impl<'a> Context {
                                 }
                             }
                             wgpu::BindingType::Texture {
-                                sample_type,
-                                view_dimension,
-                                multisampled,
+                                sample_type: _,
+                                view_dimension: _,
+                                multisampled: _,
                             } => {
                                 let tex = textures.get(name).unwrap();
                                 wgpu::BindGroupEntry {
@@ -503,13 +462,54 @@ impl<'a> Context {
                         })
                         .collect();
 
+                    let color_target = Some(wgpu::ColorTargetState {
+                        format: texture.format(),
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    });
+
+                    let targets = [color_target];
+
                     let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                         label: None,
                         layout: &program.bind_group_layout,
                         entries: &entries,
                     });
+                    let vertex_buffer_layout = wgpu::VertexBufferLayout {
+                        array_stride: vertex_array.stride,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &vertex_array.attributes,
+                    };
+                    let pipeline =
+                        self.device
+                            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                                label: None,
+                                layout: Some(&program.pipeline_layout),
+                                vertex: wgpu::VertexState {
+                                    module: &program.vertex_shader,
+                                    entry_point: None,
+                                    buffers: &[vertex_buffer_layout],
+                                    compilation_options: Default::default(),
+                                },
+                                fragment: program.fragment_shader.as_ref().map(|fs| {
+                                    wgpu::FragmentState {
+                                        module: fs,
+                                        entry_point: None,
+                                        targets: &targets,
+                                        compilation_options: Default::default(),
+                                    }
+                                }),
+                                primitive: wgpu::PrimitiveState {
+                                    cull_mode: None,
+                                    ..Default::default()
+                                },
+                                depth_stencil: None,
+                                multisample: Default::default(),
+                                multiview_mask: None,
+                                cache: None,
+                            });
 
-                    pass.set_pipeline(&vertex_array.pipeline);
+                    pass.set_pipeline(&pipeline);
                     pass.set_bind_group(0, &bind_group, &[]);
                     pass.set_vertex_buffer(0, vertex_array.vertex_buffer.slice(..));
 
