@@ -64,6 +64,7 @@ pub enum TextureType {
 ///
 /// Created using `Context::texture`.
 pub struct Texture {
+    pub(crate) id: usize,
     pub(crate) format: TextureFormat,
     pub(crate) texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,

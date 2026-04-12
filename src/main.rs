@@ -5,7 +5,7 @@ use yourgpu::{
 };
 
 fn main() {
-    let ctx = Context::new();
+    let mut ctx = Context::new();
 
     let tex = ctx.texture(
         1920,

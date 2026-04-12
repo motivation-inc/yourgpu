@@ -1,6 +1,7 @@
 use crate::{
     BindingBuilder, BufferType, TextureType,
     buffer::Buffer,
+    caching::{BindGroupKey, PipelineKey},
     program::Program,
     render_pass::{RenderOperation, RenderPass},
     surface::Surface,
@@ -8,7 +9,13 @@ use crate::{
     vertex_array::{VertexArray, VertexLayoutBuilder},
     window::WindowSurface,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    hash::{DefaultHasher, Hash, Hasher},
+    rc::Rc,
+    sync::Arc,
+};
 use winit::window::Window;
 
 fn align_to_256(n: u32) -> u32 {
@@ -24,6 +31,9 @@ pub struct Context {
     pub(crate) adapter: wgpu::Adapter,
     pub(crate) device: wgpu::Device,
     pub(crate) queue: wgpu::Queue,
+    pipeline_cache: HashMap<PipelineKey, Rc<wgpu::RenderPipeline>>,
+    bind_group_cache: HashMap<BindGroupKey, Rc<wgpu::BindGroup>>,
+    next_id: usize,
 }
 
 impl<'a> Context {
@@ -61,6 +71,9 @@ impl<'a> Context {
             adapter,
             device,
             queue,
+            pipeline_cache: HashMap::new(),
+            bind_group_cache: HashMap::new(),
+            next_id: 0,
         }
     }
 
@@ -102,7 +115,7 @@ impl<'a> Context {
     /// panic!("UNIMPLEMENTED");
     /// ```
     pub fn program(
-        &self,
+        &mut self,
         vertex_shader: &str,
         fragment_shader: Option<&str>,
         binding: BindingBuilder,
@@ -139,13 +152,20 @@ impl<'a> Context {
                 immediate_size: 0,
             });
 
-        Program {
+        let program = Program {
+            id: self.next_id,
+            pipeline_layout_id: self.next_id,
+            bind_group_layout_id: self.next_id + binding.entries.keys().len(),
             vertex_shader: vs_module,
             fragment_shader: fs_module,
             bind_group_layout,
             pipeline_layout,
             bindings: binding.entries,
-        }
+        };
+
+        self.next_id += 1;
+
+        program
     }
 
     /// Constructs a new `Buffer` object, where `data` is an array of data.
@@ -161,7 +181,7 @@ impl<'a> Context {
     /// let ctx = Context::new();
     /// let buffer = ctx.buffer(&[0.0, 0.0, 0.0], BufferType::Vertex);
     /// ```
-    pub fn buffer<T>(&self, data: &[T], buffer_type: BufferType) -> Buffer
+    pub fn buffer<T>(&mut self, data: &[T], buffer_type: BufferType) -> Buffer
     where
         T: bytemuck::Pod,
     {
@@ -201,7 +221,15 @@ impl<'a> Context {
         // upload data
         self.queue.write_buffer(&buffer, 0, bytes);
 
-        Buffer { buffer, byte_size }
+        let buffer = Buffer {
+            id: self.next_id,
+            buffer,
+            byte_size,
+        };
+
+        self.next_id += 1;
+
+        buffer
     }
 
     /// Constructs a new `Texture` object, with `width` and `height`, `bytes` being the image data,
@@ -220,7 +248,7 @@ impl<'a> Context {
     /// let tex = ctx.texture(width, height, Some(&[0x32, 0x32, 0x32, 0x32]), TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
     /// ```
     pub fn texture(
-        &self,
+        &mut self,
         width: u32,
         height: u32,
         bytes: Option<&[u8]>,
@@ -285,14 +313,19 @@ impl<'a> Context {
             ..Default::default()
         });
 
-        Texture {
+        let texture = Texture {
+            id: self.next_id,
             format,
             texture,
             view,
             sampler,
             width,
             height,
-        }
+        };
+
+        self.next_id += 1;
+
+        texture
     }
 
     /// Constructs a new `VertexArray` object, where `vertex_buffer` is a vertex buffer, `index_buffer`
@@ -352,7 +385,7 @@ impl<'a> Context {
     ///     r.clear(0.0, 1.0, 0.0, 1.0) // solid green
     /// })
     /// ```
-    pub fn render_texture<F>(&self, program: &Program, texture: &Texture, f: F)
+    pub fn render_texture<F>(&mut self, program: &Program, texture: &Texture, f: F)
     where
         F: FnOnce(&mut RenderPass<'a>),
     {
@@ -423,6 +456,9 @@ impl<'a> Context {
                     textures.insert(name, texture);
                 }
                 RenderOperation::Draw(vertex_array) => {
+                    let mut buffer_ids: Vec<usize> = Vec::new();
+                    let mut texture_ids: Vec<usize> = Vec::new();
+
                     let entries: Vec<_> = program
                         .bindings
                         .iter()
@@ -433,6 +469,8 @@ impl<'a> Context {
                                 min_binding_size: _,
                             } => {
                                 let buffer = buffers.get(name).unwrap();
+                                buffer_ids.push(buffer.id);
+
                                 wgpu::BindGroupEntry {
                                     binding: binding.binding,
                                     resource: buffer.buffer.as_entire_binding(),
@@ -444,6 +482,8 @@ impl<'a> Context {
                                 multisampled: _,
                             } => {
                                 let tex = textures.get(name).unwrap();
+                                texture_ids.push(tex.id);
+
                                 wgpu::BindGroupEntry {
                                     binding: binding.binding,
                                     resource: wgpu::BindingResource::TextureView(&tex.view),
@@ -451,6 +491,8 @@ impl<'a> Context {
                             }
                             wgpu::BindingType::Sampler(_) => {
                                 let tex = textures.get(name).unwrap();
+                                texture_ids.push(tex.id);
+
                                 wgpu::BindGroupEntry {
                                     binding: binding.binding,
                                     resource: wgpu::BindingResource::Sampler(&tex.sampler),
@@ -462,55 +504,91 @@ impl<'a> Context {
                         })
                         .collect();
 
+                    buffer_ids.sort();
+                    texture_ids.sort();
+
                     let color_target = Some(wgpu::ColorTargetState {
                         format: texture.format(),
                         blend: Some(wgpu::BlendState::REPLACE),
                         write_mask: wgpu::ColorWrites::ALL,
                     });
-
                     let targets = [color_target];
-
-                    let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: None,
-                        layout: &program.bind_group_layout,
-                        entries: &entries,
-                    });
                     let vertex_buffer_layout = wgpu::VertexBufferLayout {
                         array_stride: vertex_array.stride,
                         step_mode: wgpu::VertexStepMode::Vertex,
                         attributes: &vertex_array.attributes,
                     };
-                    let pipeline =
-                        self.device
-                            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                                label: None,
-                                layout: Some(&program.pipeline_layout),
-                                vertex: wgpu::VertexState {
-                                    module: &program.vertex_shader,
-                                    entry_point: None,
-                                    buffers: &[vertex_buffer_layout],
-                                    compilation_options: Default::default(),
+
+                    // create a hash of the vertex array attributes
+                    let mut hasher = DefaultHasher::new();
+                    vertex_array.attributes.hash(&mut hasher);
+
+                    // create keys for pipelines and bind groups
+                    let pipeline_key = PipelineKey {
+                        program_id: program.id,
+                        layout_id: program.pipeline_layout_id,
+                        attribute_hash: hasher.finish(),
+                    };
+                    let bind_group_key = BindGroupKey {
+                        program_id: program.id,
+                        layout_id: program.bind_group_layout_id,
+                        buffer_ids: buffer_ids,
+                        texture_ids: texture_ids,
+                    };
+                    let bind_group = match self.bind_group_cache.get(&bind_group_key) {
+                        Some(bg) => bg.clone().to_owned(),
+                        None => {
+                            let bg = Rc::new(self.device.create_bind_group(
+                                &wgpu::BindGroupDescriptor {
+                                    label: None,
+                                    layout: &program.bind_group_layout,
+                                    entries: &entries,
                                 },
-                                fragment: program.fragment_shader.as_ref().map(|fs| {
-                                    wgpu::FragmentState {
-                                        module: fs,
+                            ));
+                            self.bind_group_cache.insert(bind_group_key, bg.clone());
+
+                            bg
+                        }
+                    };
+                    let pipeline = match self.pipeline_cache.get(&pipeline_key) {
+                        Some(pl) => pl.clone().to_owned(),
+                        None => {
+                            let pl = Rc::new(self.device.create_render_pipeline(
+                                &wgpu::RenderPipelineDescriptor {
+                                    label: None,
+                                    layout: Some(&program.pipeline_layout),
+                                    vertex: wgpu::VertexState {
+                                        module: &program.vertex_shader,
                                         entry_point: None,
-                                        targets: &targets,
+                                        buffers: &[vertex_buffer_layout],
                                         compilation_options: Default::default(),
-                                    }
-                                }),
-                                primitive: wgpu::PrimitiveState {
-                                    cull_mode: None,
-                                    ..Default::default()
+                                    },
+                                    fragment: program.fragment_shader.as_ref().map(|fs| {
+                                        wgpu::FragmentState {
+                                            module: fs,
+                                            entry_point: None,
+                                            targets: &targets,
+                                            compilation_options: Default::default(),
+                                        }
+                                    }),
+                                    primitive: wgpu::PrimitiveState {
+                                        cull_mode: None,
+                                        ..Default::default()
+                                    },
+                                    depth_stencil: None,
+                                    multisample: Default::default(),
+                                    multiview_mask: None,
+                                    cache: None,
                                 },
-                                depth_stencil: None,
-                                multisample: Default::default(),
-                                multiview_mask: None,
-                                cache: None,
-                            });
+                            ));
+                            self.pipeline_cache.insert(pipeline_key, pl.clone());
+
+                            pl
+                        }
+                    };
 
                     pass.set_pipeline(&pipeline);
-                    pass.set_bind_group(0, &bind_group, &[]);
+                    pass.set_bind_group(0, &*bind_group, &[]);
                     pass.set_vertex_buffer(0, vertex_array.vertex_buffer.slice(..));
 
                     if let Some(index) = &vertex_array.index_buffer {

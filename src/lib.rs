@@ -1,5 +1,6 @@
 mod binding;
 mod buffer;
+mod caching;
 mod context;
 mod program;
 mod render_pass;
