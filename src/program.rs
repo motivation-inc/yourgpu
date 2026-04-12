@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-/// A program object, containing vertex and fragment shaders.
+/// A program object, containing all shader information.
+///
+/// Created using `Context::program`.
 pub struct Program {
     pub(crate) id: usize,
     pub(crate) pipeline_layout_id: usize,
