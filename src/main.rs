@@ -48,7 +48,7 @@ fn main() {
     let color_buffer = ctx.buffer(&[1.0_f32, 0.5, 0.0, 1.0], BufferType::Uniform);
 
     let vbo = ctx.buffer(
-        &[0.0, 0.6, 0.0, -0.6, -0.6, 0.0, 0.6, -0.6, 0.0],
+        &[0.0_f32, 0.6, 0.0, -0.6, -0.6, 0.0, 0.6, -0.6, 0.0],
         BufferType::Vertex,
     );
 
