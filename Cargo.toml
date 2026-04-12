@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0"
 authors = ["Motivation Software Inc."]
-description = "Simple GPU abstraction built on top of WGPU"
+description = "A modern GPU abstraction built on top of WGPU"
 repository = "https://github.com/motivation-inc/yourgpu"
 
 [dependencies]
