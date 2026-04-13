@@ -106,12 +106,11 @@ impl VertexLayoutBuilder {
     /// is the format of the attribute.
     ///
     /// # Example
+    ///
     /// ```
     /// use yourgpu::{VertexLayoutBuilder, VertexAttributeFormat};
     ///
-    /// let builder = VertexLayoutBuilder::new()
-    ///                 .attr(0, VertexAttributeFormat::Float32x3);
-    ///                 .attr(1, VertexAttributeFormat::Uint32);
+    /// let builder = VertexLayoutBuilder::new().attr(1, VertexAttributeFormat::Uint32);
     /// ```
     pub fn attr(mut self, location: u32, format: VertexAttributeFormat) -> Self {
         self.attributes.push(VertexAttribute { location, format });
@@ -120,7 +119,7 @@ impl VertexLayoutBuilder {
     }
 }
 
-/// A vertex array object, containing the pipeline and vertex + index buffers.
+/// A vertex array object, vertex + index buffers.
 ///
 /// Created using `Context::vertex_array`.
 pub struct VertexArray {
