@@ -1,4 +1,4 @@
-use crate::{buffer::Buffer, texture::Texture, vertex_array::VertexArray};
+use crate::{TextureFormat, buffer::Buffer, texture::Texture, vertex_array::VertexArray};
 
 /// Describes the cull mode used on a render pass.
 pub enum RenderCullMode {
@@ -30,12 +30,39 @@ impl RenderFrontFaceMode {
     }
 }
 
+/// Describes the comparison mode used for depth and stencil operations on a render pass.
+pub enum RenderDepthComparison {
+    Never,
+    Less,
+    Equal,
+    LessEqual,
+    Greater,
+    NotEqual,
+    GreaterEqual,
+    Always,
+}
+
+impl RenderDepthComparison {
+    pub(crate) fn to_wgpu(&self) -> wgpu::CompareFunction {
+        match self {
+            RenderDepthComparison::Never => wgpu::CompareFunction::Never,
+            RenderDepthComparison::Less => wgpu::CompareFunction::Less,
+            RenderDepthComparison::Equal => wgpu::CompareFunction::Equal,
+            RenderDepthComparison::LessEqual => wgpu::CompareFunction::LessEqual,
+            RenderDepthComparison::Greater => wgpu::CompareFunction::Greater,
+            RenderDepthComparison::NotEqual => wgpu::CompareFunction::NotEqual,
+            RenderDepthComparison::GreaterEqual => wgpu::CompareFunction::GreaterEqual,
+            RenderDepthComparison::Always => wgpu::CompareFunction::Always,
+        }
+    }
+}
+
 pub(crate) enum RenderOperation<'a> {
     Clear(f64, f64, f64, f64),
     Draw(&'a VertexArray),
     SetCullMode(Option<wgpu::Face>),
     SetFrontFace(wgpu::FrontFace),
-    // SetDepth(Option<wgpu::DepthStencilState>),
+    SetDepthStencil(Option<wgpu::DepthStencilState>),
     SetViewport(f32, f32, f32, f32, f32, f32),
     SetScissorRect(u32, u32, u32, u32),
     SetUniform(String, &'a Buffer),
@@ -129,6 +156,30 @@ impl<'a> RenderPass<'a> {
     pub fn set_scissor_rect(&mut self, x: u32, y: u32, width: u32, height: u32) {
         self.operations
             .push(RenderOperation::SetScissorRect(x, y, width, height))
+    }
+
+    /// Set depth stencil operation, where `state` is the texture format, if the depth is written to, and
+    /// the depth comparison function to use.
+    ///
+    /// (format: `TextureFormat`, depth_write_enabled: `bool`, depth_comparison: `RenderDepthComparison`)
+    pub fn set_depth_stencil(
+        &mut self,
+        state: Option<(TextureFormat, bool, RenderDepthComparison)>,
+    ) {
+        match state {
+            Some((format, depth_write_enabled, depth_comparison)) => {
+                self.operations.push(RenderOperation::SetDepthStencil(Some(
+                    wgpu::DepthStencilState {
+                        format: format.to_wgpu(),
+                        depth_write_enabled,
+                        depth_compare: depth_comparison.to_wgpu(),
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    },
+                )));
+            }
+            None => self.operations.push(RenderOperation::SetDepthStencil(None)),
+        }
     }
 
     /// Set uniform operation, where `name` is the program binding name, and `buffer` is the data to set the

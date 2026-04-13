@@ -440,6 +440,7 @@ impl<'a> Context {
         let mut textures: HashMap<String, &'a Texture> = HashMap::new();
         let mut cull_mode: Option<wgpu::Face> = wgpu::PrimitiveState::default().cull_mode;
         let mut front_face: wgpu::FrontFace = wgpu::PrimitiveState::default().front_face;
+        let mut depth_stencil_state: Option<wgpu::DepthStencilState> = None;
 
         for operation in r.operations {
             match operation {
@@ -451,6 +452,7 @@ impl<'a> Context {
                 }
                 RenderOperation::SetCullMode(mode) => cull_mode = mode,
                 RenderOperation::SetFrontFace(face) => front_face = face,
+                RenderOperation::SetDepthStencil(ds) => depth_stencil_state = ds,
                 RenderOperation::SetUniform(name, buffer) => {
                     if !valid_binding_names.contains(&name) {
                         panic!("Unknown program binding name: '{name}'")
@@ -528,6 +530,7 @@ impl<'a> Context {
                         texture.format(),
                         cull_mode,
                         front_face,
+                        depth_stencil_state.to_owned(),
                         &vertex_array,
                     );
 
@@ -752,6 +755,7 @@ impl<'a> Context {
         texture_format: wgpu::TextureFormat,
         cull_mode: Option<wgpu::Face>,
         front_face: wgpu::FrontFace,
+        depth_stencil_state: Option<wgpu::DepthStencilState>,
         vertex_array: &VertexArray,
     ) -> Rc<wgpu::RenderPipeline> {
         let mut hasher = DefaultHasher::new();
@@ -801,7 +805,7 @@ impl<'a> Context {
                                 front_face,
                                 ..Default::default()
                             },
-                            depth_stencil: None,
+                            depth_stencil: depth_stencil_state,
                             multisample: Default::default(),
                             multiview_mask: None,
                             cache: None,

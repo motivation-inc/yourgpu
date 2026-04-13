@@ -13,6 +13,7 @@ pub use {
     binding::BindingBuilder,
     buffer::BufferType,
     context::Context,
+    render_pass::{RenderCullMode, RenderDepthComparison, RenderFrontFaceMode},
     texture::{TextureFormat, TextureType},
     vertex_array::{VertexAttributeFormat, VertexLayoutBuilder},
 };
