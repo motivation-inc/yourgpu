@@ -441,6 +441,12 @@ impl<'a> Context {
 
         for operation in r.operations {
             match operation {
+                RenderOperation::SetViewport(x, y, w, h, min_depth, max_depth) => {
+                    pass.set_viewport(x, y, w, h, min_depth, max_depth);
+                }
+                RenderOperation::SetScissorRect(x, y, w, h) => {
+                    pass.set_scissor_rect(x, y, w, h);
+                }
                 RenderOperation::SetUniform(name, buffer) => {
                     if !valid_binding_names.contains(&name) {
                         panic!("Unknown program binding name: '{name}'")
