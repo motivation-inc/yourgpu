@@ -65,8 +65,7 @@ fn main() {
         r.draw(&vao);
     });
 
-    let img =
-        ImageBuffer::<Rgba<u8>, _>::from_raw(1920, 1920, ctx.read_texture(&tex).to_vec()).unwrap();
+    let img = ImageBuffer::<Rgba<u8>, _>::from_raw(1920, 1920, ctx.read_texture(&tex)).unwrap();
 
     img.save("output.png").unwrap();
 }

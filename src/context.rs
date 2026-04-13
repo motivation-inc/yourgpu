@@ -113,7 +113,7 @@ impl<'a> Context {
     /// ```
     /// use yourgpu::{Context, BindingBuilder};
     ///
-    /// let ctx = Context::new();
+    /// let mut ctx = Context::new();
     /// let prog = ctx.program("// vertex shader", Some("// fragment shader"), BindingBuilder::new());
     /// ```
     pub fn program(
@@ -180,7 +180,7 @@ impl<'a> Context {
     /// ```
     /// use yourgpu::{Context, BufferType};
     ///
-    /// let ctx = Context::new();
+    /// let mut ctx = Context::new();
     /// let buffer = ctx.buffer(&[0.0, 0.0, 0.0], BufferType::Vertex);
     /// ```
     pub fn buffer<T>(&mut self, data: &[T], buffer_type: BufferType) -> Buffer
@@ -246,8 +246,8 @@ impl<'a> Context {
     ///
     /// let (width, height) = (2, 2);
     ///
-    /// let ctx = Context::new();
-    /// let tex = ctx.texture(width, height, Some(&[0x32, 0x32, 0x32, 0x32]), TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
+    /// let mut ctx = Context::new();
+    /// let tex = ctx.texture(width, height, None, TextureFormat::Rgba8Unorm, TextureType::RenderAttachment); // empty texture
     /// ```
     pub fn texture(
         &mut self,
@@ -336,7 +336,13 @@ impl<'a> Context {
     /// # Example
     ///
     /// ```
-    /// panic!("UNIMPLEMENTED");
+    /// use yourgpu::{Context, BufferType, VertexLayoutBuilder, BindingBuilder};
+    ///
+    /// let mut ctx = Context::new();
+    /// let prog = ctx.program("// vertex_shader", Some("// fragment_shader"), BindingBuilder::new());
+    /// let vbo = ctx.buffer(&[0.0_f32, 0.6, 0.0, -0.6, -0.6, 0.0, 0.6, -0.6, 0.0], BufferType::Vertex);
+    ///
+    /// let vao = ctx.vertex_array(&vbo, None, VertexLayoutBuilder::new());
     /// ```
     pub fn vertex_array(
         &self,
@@ -357,12 +363,18 @@ impl<'a> Context {
             stride += attr.format.size();
         }
 
+        let vertex_count = if stride == 0 {
+            0
+        } else {
+            (vertex_buffer.byte_size / stride) as u32
+        };
+
         VertexArray {
             stride,
             attributes,
             vertex_buffer: vertex_buffer.buffer.clone(),
             index_buffer: index_buffer.map(|b| b.buffer.clone()),
-            vertex_count: (vertex_buffer.byte_size / stride) as u32,
+            vertex_count: vertex_count,
             index_count: index_buffer.map(|b| (b.byte_size / 4) as u32).unwrap_or(0), // index buffer data is a u32
         }
     }
@@ -593,10 +605,11 @@ impl<'a> Context {
         f(&mut r);
     }
 
-    /// Read data from a referenced `Buffer` object.
+    /// Read data (in bytes) from a referenced `Buffer` object.
     ///
-    /// This function is **thread-blocking**, as reading data from the GPU to the CPU is a slow, inefficient process.
-    /// Only recommended for compute-use and not render loops or graphics-heavy work.
+    /// This function is **thread-blocking**, as reading data from the GPU to the CPU is a slow,
+    /// inefficient process. Only recommended for compute-use and not render loops or graphics-heavy
+    /// work.
     ///
     /// # Example
     ///
@@ -606,10 +619,10 @@ impl<'a> Context {
     /// let mut ctx = Context::new();
     /// let buffer = ctx.buffer(&[0.0, 0.0, 0.0], BufferType::Vertex);
     ///
-    /// let data: Vec<f32> = ctx.read_buffer(&buffer);
+    /// let data: Vec<f64> = bytemuck::cast_slice(&ctx.read_buffer(&buffer)).to_vec();
     /// assert_eq!(vec![0.0, 0.0, 0.0], data);
     /// ```
-    pub fn read_buffer<T: bytemuck::Pod>(&self, buffer: &Buffer) -> Vec<T> {
+    pub fn read_buffer(&self, buffer: &Buffer) -> Vec<u8> {
         let size = buffer.buffer.size();
 
         // create staging buffer
@@ -646,7 +659,7 @@ impl<'a> Context {
         // read data
         let data = buffer_slice.get_mapped_range();
 
-        let result: Vec<T> = bytemuck::cast_slice(&data).to_vec();
+        let result: Vec<u8> = bytemuck::cast_slice(&data).to_vec();
 
         drop(data);
         staging_buffer.unmap();
@@ -699,9 +712,10 @@ impl<'a> Context {
     /// let (width, height) = (2, 2);
     ///
     /// let mut ctx = Context::new();
-    /// let tex = ctx.texture(width, height, Some(&[0x32, 0x32, 0x32, 0x32]), TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
+    /// let tex = ctx.texture(width, height, None, TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
     ///
-    /// assert_eq!(vec![0x32, 0x32, 0x32, 0x32], ctx.read_texture(&tex));
+    /// let data: Vec<u8> = ctx.read_texture(&tex);
+    /// assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], data);
     /// ```
     pub fn read_texture(&self, texture: &Texture) -> Vec<u8> {
         let width = texture.width;
