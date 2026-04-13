@@ -1,4 +1,4 @@
-use crate::{TextureFormat, buffer::Buffer, texture::Texture, vertex_array::VertexArray};
+use crate::{buffer::Buffer, texture::Texture, vertex_array::VertexArray};
 
 /// Describes the cull mode used on a render pass.
 pub enum RenderCullMode {
@@ -81,25 +81,6 @@ pub struct RenderPass<'a> {
 
 impl<'a> RenderPass<'a> {
     /// Clear operation filling the screen with the specified RGBA data.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use yourgpu::{Context, TextureFormat, TextureType};
-    ///
-    /// let ctx = Context::new();
-    /// let tex = ctx.texture(
-    ///     1028,
-    ///     1028,
-    ///     None,
-    ///     TextureFormat::Rgba8Unorm,
-    ///     TextureType::RenderAttachment,
-    /// );
-    ///
-    /// ctx.render_texture(&tex, |r| {
-    ///     r.clear(0.0, 0.0, 0.0, 1.0) // solid black
-    /// })
-    /// ```
     pub fn clear(&mut self, r: f64, g: f64, b: f64, a: f64) {
         self.operations.push(RenderOperation::Clear(r, g, b, a));
     }

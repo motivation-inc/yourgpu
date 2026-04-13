@@ -10,7 +10,6 @@ use crate::{
     window::WindowSurface,
 };
 use std::{
-    cell::RefCell,
     collections::HashMap,
     hash::{DefaultHasher, Hash, Hasher},
     rc::Rc,
@@ -112,7 +111,10 @@ impl<'a> Context {
     /// # Example
     ///
     /// ```
-    /// panic!("UNIMPLEMENTED");
+    /// use yourgpu::{Context, BindingBuilder};
+    ///
+    /// let ctx = Context::new();
+    /// let prog = ctx.program("// vertex shader", Some("// fragment shader"), BindingBuilder::new());
     /// ```
     pub fn program(
         &mut self,
@@ -370,9 +372,9 @@ impl<'a> Context {
     /// # Example
     ///
     /// ```
-    /// use yourgpu::{Context, TextureFormat, TextureType};
+    /// use yourgpu::{Context, TextureFormat, TextureType, BindingBuilder};
     ///
-    /// let ctx = Context::new();
+    /// let mut ctx = Context::new();
     /// let tex = ctx.texture(
     ///     1028,
     ///     1028,
@@ -380,9 +382,9 @@ impl<'a> Context {
     ///     TextureFormat::Rgba8Unorm,
     ///     TextureType::RenderAttachment,
     /// );
-    /// let program = ctx.program();
+    /// let prog = ctx.program("// vertex shader", Some("// fragment shader"), BindingBuilder::new());
     ///
-    /// ctx.render_texture(&tex, None |r| {
+    /// ctx.render_texture(&prog, &tex, None, |r| {
     ///     r.clear(0.0, 1.0, 0.0, 1.0) // solid green
     /// })
     /// ```
@@ -601,12 +603,13 @@ impl<'a> Context {
     /// ```
     /// use yourgpu::{Context, BufferType};
     ///
-    /// let ctx = Context::new();
+    /// let mut ctx = Context::new();
     /// let buffer = ctx.buffer(&[0.0, 0.0, 0.0], BufferType::Vertex);
     ///
-    /// assert_eq!(vec![0.0, 0.0, 0.0], ctx.read_buffer(&buffer));
+    /// let data: Vec<f32> = ctx.read_buffer(&buffer);
+    /// assert_eq!(vec![0.0, 0.0, 0.0], data);
     /// ```
-    pub fn read_buffer(&self, buffer: &Buffer) -> Vec<u8> {
+    pub fn read_buffer<T: bytemuck::Pod>(&self, buffer: &Buffer) -> Vec<T> {
         let size = buffer.buffer.size();
 
         // create staging buffer
@@ -643,7 +646,7 @@ impl<'a> Context {
         // read data
         let data = buffer_slice.get_mapped_range();
 
-        let result: Vec<u8> = bytemuck::cast_slice(&data).to_vec();
+        let result: Vec<T> = bytemuck::cast_slice(&data).to_vec();
 
         drop(data);
         staging_buffer.unmap();
@@ -663,12 +666,16 @@ impl<'a> Context {
     /// ```
     /// use yourgpu::{Context, BufferType};
     ///
-    /// let ctx = Context::new();
+    /// let mut ctx = Context::new();
     /// let buffer = ctx.buffer(&[0.0, 0.0, 0.0], BufferType::Vertex);
     ///
     /// ctx.write_buffer(&buffer, &[1.0, 1.0, 1.0]);
     /// ```
-    pub fn write_buffer<T>(&self, buffer: &Buffer, data: &[f32]) -> Result<(), &'static str> {
+    pub fn write_buffer<T: bytemuck::Pod>(
+        &self,
+        buffer: &Buffer,
+        data: &[T],
+    ) -> Result<(), &'static str> {
         if !buffer.buffer.usage().contains(wgpu::BufferUsages::COPY_DST) {
             return Err("Buffer must have COPY_DST usage");
         }
@@ -691,7 +698,7 @@ impl<'a> Context {
     ///
     /// let (width, height) = (2, 2);
     ///
-    /// let ctx = Context::new();
+    /// let mut ctx = Context::new();
     /// let tex = ctx.texture(width, height, Some(&[0x32, 0x32, 0x32, 0x32]), TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
     ///
     /// assert_eq!(vec![0x32, 0x32, 0x32, 0x32], ctx.read_texture(&tex));

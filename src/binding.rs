@@ -13,9 +13,7 @@ impl BindingBuilder {
     /// ```
     /// use yourgpu::BindingBuilder;
     ///
-    /// let bindings = BindingBuilder::new()
-    ///                 .uniform("u_color", 0);
-    ///                 .texture_2d("tex", 1);
+    /// let bindings = BindingBuilder::new();
     /// ```
     pub fn new() -> Self {
         Self {
