@@ -62,7 +62,7 @@ pub(crate) enum RenderOperation<'a> {
     Draw(&'a VertexArray),
     SetCullMode(Option<wgpu::Face>),
     SetFrontFace(wgpu::FrontFace),
-    SetDepthStencil(Option<wgpu::DepthStencilState>),
+    SetDepthTest(bool, wgpu::CompareFunction),
     SetViewport(f32, f32, f32, f32, f32, f32),
     SetScissorRect(u32, u32, u32, u32),
     SetUniform(String, &'a Buffer),
@@ -158,28 +158,13 @@ impl<'a> RenderPass<'a> {
             .push(RenderOperation::SetScissorRect(x, y, width, height))
     }
 
-    /// Set depth stencil operation, where `state` is the texture format, if the depth is written to, and
-    /// the depth comparison function to use.
-    ///
-    /// (format: `TextureFormat`, depth_write_enabled: `bool`, depth_comparison: `RenderDepthComparison`)
-    pub fn set_depth_stencil(
-        &mut self,
-        state: Option<(TextureFormat, bool, RenderDepthComparison)>,
-    ) {
-        match state {
-            Some((format, depth_write_enabled, depth_comparison)) => {
-                self.operations.push(RenderOperation::SetDepthStencil(Some(
-                    wgpu::DepthStencilState {
-                        format: format.to_wgpu(),
-                        depth_write_enabled,
-                        depth_compare: depth_comparison.to_wgpu(),
-                        stencil: wgpu::StencilState::default(),
-                        bias: wgpu::DepthBiasState::default(),
-                    },
-                )));
-            }
-            None => self.operations.push(RenderOperation::SetDepthStencil(None)),
-        }
+    /// Set depth test operation, where `write` is if the depth is write enabled, and `depth_compare` is the
+    /// depth comparison.
+    pub fn set_depth_test(&mut self, write: bool, depth_compare: RenderDepthComparison) {
+        self.operations.push(RenderOperation::SetDepthTest(
+            write,
+            depth_compare.to_wgpu(),
+        ));
     }
 
     /// Set uniform operation, where `name` is the program binding name, and `buffer` is the data to set the

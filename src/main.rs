@@ -58,7 +58,7 @@ fn main() {
         VertexLayoutBuilder::new().attr(0, VertexAttributeFormat::Float32x3),
     );
 
-    ctx.render_texture(&prog, &tex, |r| {
+    ctx.render_texture(&prog, &tex, None, |r| {
         r.clear(0.0, 0.0, 0.0, 1.0);
         r.set_uniform("u_color", &color_buffer);
 

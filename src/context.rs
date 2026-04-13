@@ -380,13 +380,19 @@ impl<'a> Context {
     ///     TextureFormat::Rgba8Unorm,
     ///     TextureType::RenderAttachment,
     /// );
+    /// let program = ctx.program();
     ///
-    /// ctx.render_texture(&tex, |r| {
+    /// ctx.render_texture(&tex, None |r| {
     ///     r.clear(0.0, 1.0, 0.0, 1.0) // solid green
     /// })
     /// ```
-    pub fn render_texture<F>(&mut self, program: &Program, texture: &Texture, f: F)
-    where
+    pub fn render_texture<F>(
+        &mut self,
+        program: &Program,
+        texture: &Texture,
+        depth_texture: Option<&Texture>,
+        f: F,
+    ) where
         F: FnOnce(&mut RenderPass<'a>),
     {
         let mut r = RenderPass {
@@ -424,7 +430,17 @@ impl<'a> Context {
                 },
                 depth_slice: None,
             })],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: match depth_texture {
+                Some(t) => Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &t.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0), // farthest depth
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                None => None,
+            },
             timestamp_writes: None,
             occlusion_query_set: None,
             multiview_mask: None,
@@ -452,7 +468,17 @@ impl<'a> Context {
                 }
                 RenderOperation::SetCullMode(mode) => cull_mode = mode,
                 RenderOperation::SetFrontFace(face) => front_face = face,
-                RenderOperation::SetDepthStencil(ds) => depth_stencil_state = ds,
+                RenderOperation::SetDepthTest(write, compare) => {
+                    if let Some(format) = depth_texture.map(|f| f.format()) {
+                        depth_stencil_state = Some(wgpu::DepthStencilState {
+                            format,
+                            depth_write_enabled: write,
+                            depth_compare: compare,
+                            stencil: wgpu::StencilState::default(),
+                            bias: wgpu::DepthBiasState::default(),
+                        });
+                    }
+                }
                 RenderOperation::SetUniform(name, buffer) => {
                     if !valid_binding_names.contains(&name) {
                         panic!("Unknown program binding name: '{name}'")
@@ -758,13 +784,16 @@ impl<'a> Context {
         depth_stencil_state: Option<wgpu::DepthStencilState>,
         vertex_array: &VertexArray,
     ) -> Rc<wgpu::RenderPipeline> {
-        let mut hasher = DefaultHasher::new();
-        vertex_array.attributes.hash(&mut hasher);
+        let mut vertex_hasher = DefaultHasher::new();
+        let mut depth_hasher = DefaultHasher::new();
+        vertex_array.attributes.hash(&mut vertex_hasher);
+        depth_stencil_state.hash(&mut depth_hasher);
 
         let key = PipelineKey {
             program_id: program.id,
             layout_id: program.pipeline_layout_id,
-            attribute_hash: hasher.finish(),
+            attribute_hash: vertex_hasher.finish(),
+            depth_stencil_state_hash: depth_hasher.finish(),
         };
 
         let color_target = Some(wgpu::ColorTargetState {
@@ -780,7 +809,7 @@ impl<'a> Context {
                 let pipeline =
                     self.device
                         .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                            label: Some("Cached Render Pipeline"),
+                            label: None,
                             layout: Some(&program.pipeline_layout),
                             vertex: wgpu::VertexState {
                                 module: &program.vertex_shader,
