@@ -438,6 +438,8 @@ impl<'a> Context {
             .collect::<Vec<String>>();
         let mut buffers: HashMap<String, &'a Buffer> = HashMap::new();
         let mut textures: HashMap<String, &'a Texture> = HashMap::new();
+        let mut cull_mode: Option<wgpu::Face> = wgpu::PrimitiveState::default().cull_mode;
+        let mut front_face: wgpu::FrontFace = wgpu::PrimitiveState::default().front_face;
 
         for operation in r.operations {
             match operation {
@@ -447,6 +449,8 @@ impl<'a> Context {
                 RenderOperation::SetScissorRect(x, y, w, h) => {
                     pass.set_scissor_rect(x, y, w, h);
                 }
+                RenderOperation::SetCullMode(mode) => cull_mode = mode,
+                RenderOperation::SetFrontFace(face) => front_face = face,
                 RenderOperation::SetUniform(name, buffer) => {
                     if !valid_binding_names.contains(&name) {
                         panic!("Unknown program binding name: '{name}'")
@@ -519,8 +523,13 @@ impl<'a> Context {
                         &texture_ids,
                         &entries,
                     );
-                    let pipeline =
-                        self.get_or_create_pipeline(&program, texture.format(), &vertex_array);
+                    let pipeline = self.get_or_create_pipeline(
+                        &program,
+                        texture.format(),
+                        cull_mode,
+                        front_face,
+                        &vertex_array,
+                    );
 
                     pass.set_pipeline(&pipeline);
                     pass.set_bind_group(0, &*bind_group, &[]);
@@ -741,6 +750,8 @@ impl<'a> Context {
         &mut self,
         program: &Program,
         texture_format: wgpu::TextureFormat,
+        cull_mode: Option<wgpu::Face>,
+        front_face: wgpu::FrontFace,
         vertex_array: &VertexArray,
     ) -> Rc<wgpu::RenderPipeline> {
         let mut hasher = DefaultHasher::new();
@@ -785,7 +796,11 @@ impl<'a> Context {
                                     compilation_options: Default::default(),
                                 }
                             }),
-                            primitive: wgpu::PrimitiveState::default(),
+                            primitive: wgpu::PrimitiveState {
+                                cull_mode,
+                                front_face,
+                                ..Default::default()
+                            },
                             depth_stencil: None,
                             multisample: Default::default(),
                             multiview_mask: None,

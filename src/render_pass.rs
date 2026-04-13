@@ -1,8 +1,41 @@
 use crate::{buffer::Buffer, texture::Texture, vertex_array::VertexArray};
 
+/// Describes the cull mode used on a render pass.
+pub enum RenderCullMode {
+    Front,
+    Back,
+}
+
+impl RenderCullMode {
+    pub(crate) fn to_wgpu(&self) -> wgpu::Face {
+        match self {
+            RenderCullMode::Front => wgpu::Face::Front,
+            RenderCullMode::Back => wgpu::Face::Back,
+        }
+    }
+}
+
+/// Describes the front face mode used on a render pass.
+pub enum RenderFrontFaceMode {
+    Clockwise,
+    CounterClockwise,
+}
+
+impl RenderFrontFaceMode {
+    pub(crate) fn to_wgpu(&self) -> wgpu::FrontFace {
+        match self {
+            RenderFrontFaceMode::Clockwise => wgpu::FrontFace::Cw,
+            RenderFrontFaceMode::CounterClockwise => wgpu::FrontFace::Ccw,
+        }
+    }
+}
+
 pub(crate) enum RenderOperation<'a> {
     Clear(f64, f64, f64, f64),
     Draw(&'a VertexArray),
+    SetCullMode(Option<wgpu::Face>),
+    SetFrontFace(wgpu::FrontFace),
+    // SetDepth(Option<wgpu::DepthStencilState>),
     SetViewport(f32, f32, f32, f32, f32, f32),
     SetScissorRect(u32, u32, u32, u32),
     SetUniform(String, &'a Buffer),
@@ -66,6 +99,22 @@ impl<'a> RenderPass<'a> {
         self.operations.push(RenderOperation::SetViewport(
             x, y, width, height, min_depth, max_depth,
         ))
+    }
+
+    /// Set cull mode operation, where `cull_mode` is the `RenderCullMode` to use.
+    pub fn set_cull_mode(&mut self, cull_mode: Option<RenderCullMode>) {
+        match cull_mode {
+            Some(c) => self
+                .operations
+                .push(RenderOperation::SetCullMode(Some(c.to_wgpu()))),
+            None => self.operations.push(RenderOperation::SetCullMode(None)),
+        }
+    }
+
+    /// Set front face operation, where `front_face` is the `RenderFrontFaceMode` to use.
+    pub fn set_front_face(&mut self, front_face: RenderFrontFaceMode) {
+        self.operations
+            .push(RenderOperation::SetFrontFace(front_face.to_wgpu()));
     }
 
     /// Set scissor rectangle operation, where anything described between the bounds defined by
