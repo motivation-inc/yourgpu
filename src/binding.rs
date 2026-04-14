@@ -21,7 +21,8 @@ impl BindingBuilder {
         }
     }
 
-    /// New uniform binding, with `name` being the binding name, and `binding` as the binding location.
+    /// Corresponds to a WGSL `uniform` binding, with `name` being the binding name,
+    /// and `binding` as the binding location.
     ///
     /// # Example
     ///
@@ -48,7 +49,8 @@ impl BindingBuilder {
         self
     }
 
-    /// New 2D texture binding, with `name` being the binding name, and `binding` as the binding location.
+    /// Corresponds to a WGSL `texture_2d` binding, with `name` being the binding name,
+    /// and `binding` as the binding location.
     ///
     /// # Example
     ///
@@ -75,7 +77,8 @@ impl BindingBuilder {
         self
     }
 
-    /// New 3D texture binding, with `name` being the binding name, and `binding` as the binding location.
+    /// Corresponds to a WGSL `texture_3d` binding, with `name` being the binding name,
+    /// and `binding` as the binding location.
     ///
     /// # Example
     ///
@@ -93,6 +96,34 @@ impl BindingBuilder {
                 ty: wgpu::BindingType::Texture {
                     multisampled: false,
                     view_dimension: wgpu::TextureViewDimension::D3,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
+        );
+
+        self
+    }
+
+    /// Corresponds to a WGSL `texture_cube` binding, with `name` being the binding name,
+    /// and `binding` as the binding location.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use yourgpu::BindingBuilder;
+    ///
+    /// let bindings = BindingBuilder::new().texture_cube("tex", 0);
+    /// ```
+    pub fn texture_cube(mut self, name: &str, binding: u32) -> Self {
+        self.entries.insert(
+            name.to_string(),
+            wgpu::BindGroupLayoutEntry {
+                binding,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::Cube,
                     sample_type: wgpu::TextureSampleType::Float { filterable: true },
                 },
                 count: None,
