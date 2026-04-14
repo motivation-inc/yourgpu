@@ -1,16 +1,16 @@
-/// Describes the type of buffer to use.
-///
-/// `Vertex`: Vertex buffer
-/// `Index`: Index buffer
-/// `Storage`: Storage buffer
-/// `CopySrc`: A source buffer for destination buffers
-/// `CopyDst`: A destination buffer for buffer copies
+/// Describes the type of buffer.
 pub enum BufferType {
+    /// A vertex buffer.
     Vertex,
+    /// An index buffer.
     Index,
+    /// A storage buffer.
     Storage,
+    /// A uniform buffer.
     Uniform,
+    /// A destination buffer for buffer copies.
     CopyDst,
+    /// A source buffer for destination buffers.
     CopySrc,
 }
 
