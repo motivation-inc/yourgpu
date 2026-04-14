@@ -1,5 +1,5 @@
 use crate::{
-    BindingBuilder, BufferType, TextureType,
+    BindingBuilder, BufferType, TextureDimension, TextureType,
     buffer::Buffer,
     caching::{BindGroupKey, PipelineKey},
     program::Program,
@@ -231,41 +231,59 @@ impl<'a> Context {
         buffer
     }
 
-    /// Constructs a new `Texture` object, with `width` and `height`, `bytes` being the image data,
-    /// and `format` being the texture format of the image.
+    /// Constructs a new `Texture` object, with `size` being the width, height, and depth (values > 1
+    /// make this a 3D texture), `bytes` being the image data, `format` being the texture format,
+    /// `texture_type` being the texture type, and `dimension` being the texture's view dimension.
     ///
-    /// If `bytes` is `None`, the texture will be created as an empty texture object.
+    /// If `bytes` is `None`, the texture will be initialized as an empty buffer.
     ///
     /// # Example
     ///
     /// ```
-    /// use yourgpu::{Context, TextureFormat, TextureType};
+    /// use yourgpu::{Context, TextureFormat, TextureType, TextureDimension};
     ///
-    /// let (width, height) = (2, 2);
+    /// let (width, height, depth) = (2, 2, 1);
     ///
     /// let mut ctx = Context::new();
-    /// let tex = ctx.texture(width, height, None, TextureFormat::Rgba8Unorm, TextureType::RenderAttachment); // empty texture
+    /// let tex = ctx.texture(
+    ///     (width, height, depth),
+    ///     None,
+    ///     TextureFormat::Rgba8Unorm,
+    ///     TextureType::RenderAttachment,
+    ///     TextureDimension::TwoDimensional
+    /// ); // empty texture
     /// ```
     pub fn texture(
         &mut self,
-        width: u32,
-        height: u32,
+        size: (u32, u32, u32),
         bytes: Option<&[u8]>,
         format: TextureFormat,
         texture_type: TextureType,
+        dimension: TextureDimension,
     ) -> Texture {
-        let size = wgpu::Extent3d {
+        let (width, height, depth) = size;
+
+        if (width > 8192 || height > 8192) || (width > 8192 && height > 8192) {
+            panic!("Width or heigth of the texture exceeds the limit of 8192")
+        }
+
+        let extent = wgpu::Extent3d {
             width: width,
             height: height,
-            depth_or_array_layers: 1,
+            depth_or_array_layers: depth,
         };
 
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: None,
-            size: size,
+            size: extent,
             mip_level_count: 1,
             sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
+            dimension: match dimension {
+                TextureDimension::TwoDimensional | TextureDimension::TwoDimensionalArray => {
+                    wgpu::TextureDimension::D2
+                }
+                _ => wgpu::TextureDimension::D3,
+            },
             format: format.to_wgpu(),
             usage: match texture_type {
                 TextureType::TextureBinding => {
@@ -297,11 +315,17 @@ impl<'a> Context {
                     bytes_per_row: Some(format.bytes_per_pixel() * width),
                     rows_per_image: Some(height),
                 },
-                size,
+                extent,
             );
         }
 
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: None,
+            format: Some(format.to_wgpu()),
+            aspect: wgpu::TextureAspect::All,
+            dimension: Some(dimension.to_wgpu()),
+            ..Default::default()
+        });
         let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::Repeat,
             address_mode_v: wgpu::AddressMode::Repeat,
@@ -381,15 +405,15 @@ impl<'a> Context {
     /// # Example
     ///
     /// ```
-    /// use yourgpu::{Context, TextureFormat, TextureType, BindingBuilder};
+    /// use yourgpu::{Context, TextureFormat, TextureType, TextureDimension, BindingBuilder};
     ///
     /// let mut ctx = Context::new();
     /// let tex = ctx.texture(
-    ///     1028,
-    ///     1028,
+    ///     (1028, 1028, 1),
     ///     None,
     ///     TextureFormat::Rgba8Unorm,
     ///     TextureType::RenderAttachment,
+    ///     TextureDimension::TwoDimensional
     /// );
     /// let prog = ctx.program("// vertex shader", Some("// fragment shader"), BindingBuilder::new());
     ///
@@ -704,12 +728,18 @@ impl<'a> Context {
     /// # Example
     ///
     /// ```
-    /// use yourgpu::{Context, TextureFormat, TextureType};
+    /// use yourgpu::{Context, TextureFormat, TextureType, TextureDimension};
     ///
-    /// let (width, height) = (2, 2);
+    /// let (width, height, depth) = (2, 2, 1);
     ///
     /// let mut ctx = Context::new();
-    /// let tex = ctx.texture(width, height, None, TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
+    /// let tex = ctx.texture(
+    ///     (width, height, depth),
+    ///     None,
+    ///     TextureFormat::Rgba8Unorm,
+    ///     TextureType::RenderAttachment,
+    ///     TextureDimension::TwoDimensional
+    /// );
     ///
     /// let data: Vec<i32> = bytemuck::cast_slice(&ctx.read_texture(&tex)).to_vec();
     /// assert_eq!(vec![0, 0, 0, 0], data);
@@ -798,12 +828,18 @@ impl<'a> Context {
     /// # Example
     ///
     /// ```
-    /// use yourgpu::{Context, TextureFormat, TextureType};
+    /// use yourgpu::{Context, TextureFormat, TextureType, TextureDimension};
     ///
-    /// let (width, height) = (2, 2);
+    /// let (width, height, depth) = (2, 2, 1);
     ///
     /// let mut ctx = Context::new();
-    /// let tex = ctx.texture(width, height, None, TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
+    /// let tex = ctx.texture(
+    ///     (width, height, depth),
+    ///     None,
+    ///     TextureFormat::Rgba8Unorm,
+    ///     TextureType::RenderAttachment,
+    ///     TextureDimension::TwoDimensional
+    /// );
     ///
     /// ctx.write_texture(&tex, &[0, 0, 0, 0]); // write all zeros
     /// ```

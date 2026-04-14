@@ -14,6 +14,6 @@ pub use {
     buffer::BufferType,
     context::Context,
     render_pass::{RenderCullMode, RenderDepthComparison, RenderFrontFaceMode},
-    texture::{TextureFormat, TextureType},
+    texture::{TextureDimension, TextureFormat, TextureType},
     vertex_array::{VertexAttributeFormat, VertexLayoutBuilder},
 };

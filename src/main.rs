@@ -1,18 +1,18 @@
 use image::{ImageBuffer, Rgba};
 use yourgpu::{
-    BindingBuilder, BufferType, Context, TextureFormat, TextureType, VertexAttributeFormat,
-    VertexLayoutBuilder,
+    BindingBuilder, BufferType, Context, TextureDimension, TextureFormat, TextureType,
+    VertexAttributeFormat, VertexLayoutBuilder,
 };
 
 fn main() {
     let mut ctx = Context::new();
 
     let tex = ctx.texture(
-        1920,
-        1920,
+        (1080, 1080, 1),
         None,
         TextureFormat::Rgba8Unorm,
         TextureType::RenderAttachment,
+        TextureDimension::TwoDimensional,
     );
 
     // Vertex shader (pass through)
@@ -65,7 +65,7 @@ fn main() {
         r.draw(&vao);
     });
 
-    let img = ImageBuffer::<Rgba<u8>, _>::from_raw(1920, 1920, ctx.read_texture(&tex)).unwrap();
+    let img = ImageBuffer::<Rgba<u8>, _>::from_raw(1080, 1080, ctx.read_texture(&tex)).unwrap();
 
     img.save("output.png").unwrap();
 }

@@ -1,6 +1,6 @@
 use crate::surface::Surface;
 
-/// Format for describing various texture data.
+/// Describes the format of the texture data.
 pub enum TextureFormat {
     // color
     Rgba8Unorm,
@@ -54,10 +54,31 @@ impl TextureFormat {
     }
 }
 
-/// A texture type.
+/// Describes the texture type.
 pub enum TextureType {
     RenderAttachment,
     TextureBinding,
+}
+
+/// Describes the texture dimension.
+pub enum TextureDimension {
+    TwoDimensional,
+    TwoDimensionalArray,
+    ThreeDimensional,
+    Cube,
+    CubeArray,
+}
+
+impl TextureDimension {
+    pub(crate) fn to_wgpu(&self) -> wgpu::TextureViewDimension {
+        match self {
+            TextureDimension::TwoDimensional => wgpu::TextureViewDimension::D2,
+            TextureDimension::TwoDimensionalArray => wgpu::TextureViewDimension::D2Array,
+            TextureDimension::ThreeDimensional => wgpu::TextureViewDimension::D3,
+            TextureDimension::Cube => wgpu::TextureViewDimension::Cube,
+            TextureDimension::CubeArray => wgpu::TextureViewDimension::CubeArray,
+        }
+    }
 }
 
 /// A texture object, containing the texture information.
