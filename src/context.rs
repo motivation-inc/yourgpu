@@ -183,10 +183,7 @@ impl<'a> Context {
     /// let mut ctx = Context::new();
     /// let buffer = ctx.buffer(&[0.0, 0.0, 0.0], BufferType::Vertex);
     /// ```
-    pub fn buffer<T>(&mut self, data: &[T], buffer_type: BufferType) -> Buffer
-    where
-        T: bytemuck::Pod,
-    {
+    pub fn buffer<T: bytemuck::Pod>(&mut self, data: &[T], buffer_type: BufferType) -> Buffer {
         let bytes = bytemuck::cast_slice(data);
         let byte_size = (std::mem::size_of_val(data)) as u64;
 
@@ -714,8 +711,8 @@ impl<'a> Context {
     /// let mut ctx = Context::new();
     /// let tex = ctx.texture(width, height, None, TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
     ///
-    /// let data: Vec<u8> = ctx.read_texture(&tex);
-    /// assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], data);
+    /// let data: Vec<i32> = bytemuck::cast_slice(&ctx.read_texture(&tex)).to_vec();
+    /// assert_eq!(vec![0, 0, 0, 0], data);
     /// ```
     pub fn read_texture(&self, texture: &Texture) -> Vec<u8> {
         let width = texture.width;
@@ -794,6 +791,44 @@ impl<'a> Context {
         staging_buffer.unmap();
 
         result
+    }
+
+    /// Write `data` to a referenced `Texture` object.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use yourgpu::{Context, TextureFormat, TextureType};
+    ///
+    /// let (width, height) = (2, 2);
+    ///
+    /// let mut ctx = Context::new();
+    /// let tex = ctx.texture(width, height, None, TextureFormat::Rgba8Unorm, TextureType::RenderAttachment);
+    ///
+    /// ctx.write_texture(&tex, &[0, 0, 0, 0]); // write all zeros
+    /// ```
+    pub fn write_texture<T: bytemuck::Pod>(&self, texture: &Texture, data: &[T]) {
+        let (width, height) = (texture.width, texture.height);
+
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                aspect: wgpu::TextureAspect::All,
+                texture: &texture.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            bytemuck::cast_slice(data),
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(texture.format.bytes_per_pixel() * width),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d {
+                width: width,
+                height: height,
+                depth_or_array_layers: 1,
+            },
+        );
     }
 
     /// Returns the context's `wgpu::Instance`.
