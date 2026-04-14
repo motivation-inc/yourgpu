@@ -1,3 +1,7 @@
+//! yourgpu, a modern, simple, and fast graphics API for Rust.
+//!
+//! For examples and references, see the `examples` folder in [yourgpu's repository](https://github.com/motivation-inc/yourgpu).
+
 mod binding;
 mod buffer;
 mod caching;
