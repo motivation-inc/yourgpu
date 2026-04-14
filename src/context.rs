@@ -26,10 +26,10 @@ fn align_to_256(n: u32) -> u32 {
 ///
 /// This struct implements methods used for GPU operations, acting as a sort of "central hub" for GPU access and usage.
 pub struct Context {
-    pub(crate) instance: wgpu::Instance,
-    pub(crate) adapter: wgpu::Adapter,
-    pub(crate) device: wgpu::Device,
-    pub(crate) queue: wgpu::Queue,
+    instance: wgpu::Instance,
+    adapter: wgpu::Adapter,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
     pipeline_cache: HashMap<PipelineKey, Rc<wgpu::RenderPipeline>>,
     bind_group_cache: HashMap<BindGroupKey, Rc<wgpu::BindGroup>>,
     next_id: usize,
@@ -794,6 +794,26 @@ impl<'a> Context {
         staging_buffer.unmap();
 
         result
+    }
+
+    /// Returns the context's `wgpu::Instance`.
+    pub fn instance(&self) -> &wgpu::Instance {
+        &self.instance
+    }
+
+    /// Returns the context's `wgpu::Adapter`.
+    pub fn adapter(&self) -> &wgpu::Adapter {
+        &self.adapter
+    }
+
+    /// Returns the context's `wgpu::Device`.
+    pub fn device(&self) -> &wgpu::Device {
+        &self.device
+    }
+
+    /// Returns the context's `wgpu::Queue`.
+    pub fn queue(&self) -> &wgpu::Queue {
+        &self.queue
     }
 
     fn get_or_create_pipeline(
