@@ -40,7 +40,6 @@ pub(crate) enum RenderOperation<'a> {
     SetDepthConfig(Option<DepthConfig>),
     SetStencilConfig(Option<StencilConfig>),
     SetStencilReference(u32),
-    SetDepthTest(bool, wgpu::CompareFunction),
     SetViewport(f32, f32, f32, f32, f32, f32),
     SetScissorRect(u32, u32, u32, u32),
     SetUniform(String, &'a Buffer),

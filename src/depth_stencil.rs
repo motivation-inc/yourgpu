@@ -97,8 +97,8 @@ impl StencilFaceConfig {
         Self {
             compare: comparison.to_wgpu(),
             fail_op: fail_op.to_wgpu(),
-            depth_fail_op: fail_op.to_wgpu(),
-            pass_op: fail_op.to_wgpu(),
+            depth_fail_op: depth_fail_op.to_wgpu(),
+            pass_op: pass_op.to_wgpu(),
         }
     }
 
