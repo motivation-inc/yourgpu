@@ -22,9 +22,10 @@ fn align_to_256(n: u32) -> u32 {
     ((n + align - 1) / align) * align
 }
 
-/// A GPU context object, containing a `wgpu::Instance` and `wgpu::Device`.
+/// A GPU context object.
 ///
-/// This struct implements methods used for GPU operations, acting as a sort of "central hub" for GPU access and usage.
+/// This struct implements methods used for GPU operations, acting as a sort of "central hub" for GPU
+/// access and usage.
 pub struct Context {
     instance: wgpu::Instance,
     adapter: wgpu::Adapter,
@@ -103,8 +104,11 @@ impl<'a> Context {
         }
     }
 
-    /// Constructs a new `Program` object, where `vertex_shader` is the vertex shader, and `fragment_shader` is the
-    /// optional fragment shader contained in the program.
+    /// Constructs a new `Program` object,
+    ///
+    /// - `vertex_shader`: the vertex shader source
+    /// - `fragment_shader`: the fragment shader source (if `None`, the program defaults to no fragment shader)
+    /// - `binding`: how the bindings in the shader are described
     ///
     /// This function requires the shader source to be valid [WebGPU Shading Language](https://www.w3.org/TR/WGSL/).
     ///
@@ -170,7 +174,9 @@ impl<'a> Context {
         program
     }
 
-    /// Constructs a new `Buffer` object, where `data` is an array of data.
+    /// Constructs a new `Buffer` object.
+    ///
+    /// - `data`: an array of data implementing the `bytemuck::Pod` trait
     ///
     /// `Buffer` objects store an array of unformatted memory allocated on the GPU, and are used for
     /// GPU-based data storage.
@@ -231,11 +237,13 @@ impl<'a> Context {
         buffer
     }
 
-    /// Constructs a new `Texture` object, with `size` being the width, height, and depth (values > 1
-    /// make this a 3D texture), `bytes` being the image data, `format` being the texture format,
-    /// `texture_type` being the texture type, and `dimension` being the texture's view dimension.
+    /// Constructs a new `Texture` object.
     ///
-    /// If `bytes` is `None`, the texture will be initialized as an empty buffer.
+    /// - `size`: the width, height, and depth (values > 1 make this a 3D texture)
+    /// - `bytes`: an array of texture bytes (if `None`, the texture will be initialized as an empty buffer)
+    /// - `format`: the texture format,
+    /// - `texture_type`: the texture type
+    /// - `dimension`: being the texture's view dimension.
     ///
     /// # Example
     ///
@@ -351,19 +359,26 @@ impl<'a> Context {
         texture
     }
 
-    /// Constructs a new `VertexArray` object, where `vertex_buffer` is a vertex buffer, `index_buffer`
-    /// is the optional index buffer, and `vertex_layout` describes the vertex data.
+    /// Constructs a new `VertexArray` object.
+    ///
+    /// - `vertex_buffer`: the vertex buffer
+    /// - `index_buffer`: the index buffer (if `None`, the index buffer is left uninitialized)
+    /// - `vertex_layout`: how the vertex data is packed
     ///
     /// # Example
     ///
     /// ```
-    /// use yourgpu::{Context, BufferType, VertexLayoutBuilder, BindingBuilder};
+    /// use yourgpu::{Context, BufferType, VertexLayoutBuilder, VertexAttributeFormat, BindingBuilder};
     ///
     /// let mut ctx = Context::new();
     /// let prog = ctx.program("// vertex_shader", Some("// fragment_shader"), BindingBuilder::new());
     /// let vbo = ctx.buffer(&[0.0_f32, 0.6, 0.0, -0.6, -0.6, 0.0, 0.6, -0.6, 0.0], BufferType::Vertex);
     ///
-    /// let vao = ctx.vertex_array(&vbo, None, VertexLayoutBuilder::new());
+    /// let vao = ctx.vertex_array(
+    ///     &vbo,
+    ///     None,
+    ///     VertexLayoutBuilder::new().attr(0, VertexAttributeFormat::Float32x3)
+    /// );
     /// ```
     pub fn vertex_array(
         &self,
@@ -624,6 +639,8 @@ impl<'a> Context {
 
     /// Read data (in bytes) from a referenced `Buffer` object.
     ///
+    /// - `buffer`: the buffer to read
+    ///
     /// This function is **thread-blocking**, as reading data from the GPU to the CPU is a slow,
     /// inefficient process. Only recommended for compute-use and not render loops or graphics-heavy
     /// work.
@@ -684,7 +701,10 @@ impl<'a> Context {
         result
     }
 
-    /// Write `data` to a referenced `Buffer` object.
+    /// Write data to a referenced `Buffer` object.
+    ///
+    /// - `buffer`: the buffer to write
+    /// - `data`: an array of data implementing the `bytemuck::Pod` trait
     ///
     /// # Errors
     ///
@@ -717,6 +737,8 @@ impl<'a> Context {
     }
 
     /// Read the texture bytes from a referenced `Texture` object.
+    ///
+    /// - `texture`: the texture object to read bytes from
     ///
     /// This function is **thread-blocking**, as reading data from the GPU to the CPU is a slow, inefficient process.
     /// Only recommended for compute-use and not render loops or graphics-heavy work.
@@ -819,7 +841,10 @@ impl<'a> Context {
         result
     }
 
-    /// Write `data` to a referenced `Texture` object.
+    /// Write bytes to a referenced `Texture` object.
+    ///
+    /// - `texture`: the texture object to read bytes from
+    /// - `data`: an array of texture bytes
     ///
     /// # Example
     ///
@@ -839,7 +864,7 @@ impl<'a> Context {
     ///
     /// ctx.write_texture(&tex, &[0, 0, 0, 0]); // write all zeros
     /// ```
-    pub fn write_texture<T: bytemuck::Pod>(&self, texture: &Texture, data: &[T]) {
+    pub fn write_texture(&self, texture: &Texture, data: &[u8]) {
         let (width, height) = (texture.width, texture.height);
 
         self.queue.write_texture(
@@ -849,7 +874,7 @@ impl<'a> Context {
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
-            bytemuck::cast_slice(data),
+            data,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(texture.format.bytes_per_pixel() * width),
