@@ -6,6 +6,7 @@ mod binding;
 mod buffer;
 mod caching;
 mod context;
+mod depth_stencil;
 mod program;
 mod render_pass;
 mod surface;
@@ -17,7 +18,8 @@ pub use {
     binding::BindingBuilder,
     buffer::BufferType,
     context::Context,
-    render_pass::{RenderCullMode, RenderDepthComparison, RenderFrontFaceMode},
+    depth_stencil::{Comparison, DepthConfig, StencilConfig, StencilFaceConfig, StencilOperation},
+    render_pass::{RenderCullMode, RenderFrontFaceMode},
     texture::{TextureDimension, TextureFormat, TextureType},
     vertex_array::{VertexAttributeFormat, VertexLayoutBuilder},
 };

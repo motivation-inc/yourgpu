@@ -16,6 +16,10 @@ pub enum TextureFormat {
     Depth24Plus,
     Depth32Float,
 
+    // depth + stencil
+    Depth24PlusStencil8,
+    Depth32FloatStencil8,
+
     // integer
     Rgba8Uint,
     Rgba8Sint,
@@ -33,6 +37,8 @@ impl TextureFormat {
             TextureFormat::Rgba32Float => wgpu::TextureFormat::Rgba32Float,
             TextureFormat::Depth24Plus => wgpu::TextureFormat::Depth24Plus,
             TextureFormat::Depth32Float => wgpu::TextureFormat::Depth32Float,
+            TextureFormat::Depth24PlusStencil8 => wgpu::TextureFormat::Depth24PlusStencil8,
+            TextureFormat::Depth32FloatStencil8 => wgpu::TextureFormat::Depth32FloatStencil8,
             TextureFormat::Rgba8Uint => wgpu::TextureFormat::Rgba8Uint,
             TextureFormat::Rgba8Sint => wgpu::TextureFormat::Rgba8Sint,
         }
@@ -50,6 +56,8 @@ impl TextureFormat {
             TextureFormat::Rgba32Float => 16,
             TextureFormat::Depth24Plus => 4, // padded to 32-bit
             TextureFormat::Depth32Float => 4,
+            TextureFormat::Depth24PlusStencil8 => 8,
+            TextureFormat::Depth32FloatStencil8 => 8,
         }
     }
 }

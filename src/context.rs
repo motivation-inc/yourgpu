@@ -1,5 +1,5 @@
 use crate::{
-    BindingBuilder, BufferType, TextureDimension, TextureType,
+    BindingBuilder, BufferType, DepthConfig, StencilConfig, TextureDimension, TextureType,
     buffer::Buffer,
     caching::{BindGroupKey, PipelineKey},
     program::Program,
@@ -491,7 +491,8 @@ impl<'a> Context {
         let mut textures: HashMap<String, &'a Texture> = HashMap::new();
         let mut cull_mode: Option<wgpu::Face> = wgpu::PrimitiveState::default().cull_mode;
         let mut front_face: wgpu::FrontFace = wgpu::PrimitiveState::default().front_face;
-        let mut depth_stencil_state: Option<wgpu::DepthStencilState> = None;
+        let mut depth_config: Option<DepthConfig> = None;
+        let mut stencil_config: Option<StencilConfig> = None;
 
         for operation in r.operations {
             match operation {
@@ -503,16 +504,10 @@ impl<'a> Context {
                 }
                 RenderOperation::SetCullMode(mode) => cull_mode = mode,
                 RenderOperation::SetFrontFace(face) => front_face = face,
-                RenderOperation::SetDepthTest(write, compare) => {
-                    if let Some(format) = depth_texture.map(|f| f.format()) {
-                        depth_stencil_state = Some(wgpu::DepthStencilState {
-                            format,
-                            depth_write_enabled: write,
-                            depth_compare: compare,
-                            stencil: wgpu::StencilState::default(),
-                            bias: wgpu::DepthBiasState::default(),
-                        });
-                    }
+                RenderOperation::SetDepthConfig(cfg) => depth_config = cfg,
+                RenderOperation::SetStencilConfig(cfg) => stencil_config = cfg,
+                RenderOperation::SetStencilReference(rf) => {
+                    pass.set_stencil_reference(rf);
                 }
                 RenderOperation::SetUniform(name, buffer) => {
                     if !valid_binding_names.contains(&name) {
@@ -591,7 +586,8 @@ impl<'a> Context {
                         texture.format(),
                         cull_mode,
                         front_face,
-                        depth_stencil_state.to_owned(),
+                        depth_config,
+                        stencil_config,
                         &vertex_array,
                     );
 
@@ -893,9 +889,31 @@ impl<'a> Context {
         texture_format: wgpu::TextureFormat,
         cull_mode: Option<wgpu::Face>,
         front_face: wgpu::FrontFace,
-        depth_stencil_state: Option<wgpu::DepthStencilState>,
+        depth_config: Option<DepthConfig>,
+        stencil_config: Option<StencilConfig>,
         vertex_array: &VertexArray,
     ) -> Rc<wgpu::RenderPipeline> {
+        let depth_stencil_state = {
+            let dcfg = match depth_config {
+                Some(cfg) => Some(cfg),
+                None => None,
+            };
+
+            if let Some(cfg) = dcfg {
+                Some(wgpu::DepthStencilState {
+                    format: texture_format,
+                    depth_write_enabled: cfg.write,
+                    depth_compare: cfg.compare,
+                    stencil: match stencil_config {
+                        Some(stencil) => stencil.to_wgpu(),
+                        None => wgpu::StencilState::default(),
+                    },
+                    bias: wgpu::DepthBiasState::default(),
+                })
+            } else {
+                None
+            }
+        };
         let mut vertex_hasher = DefaultHasher::new();
         let mut depth_hasher = DefaultHasher::new();
         vertex_array.attributes.hash(&mut vertex_hasher);
