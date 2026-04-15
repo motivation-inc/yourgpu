@@ -63,7 +63,9 @@ impl<'a> RenderPass<'a> {
         self.operations.push(RenderOperation::Clear(r, g, b, a));
     }
 
-    /// Draw operation for a `VertexArray` object, where `vao` is the vertex array to draw.
+    /// Draw operation for a `VertexArray` object.
+    ///
+    /// - `vao`: the vertex array to draw
     pub fn draw(&mut self, vao: &'a VertexArray) {
         self.operations.push(RenderOperation::Draw(&vao));
     }
@@ -87,7 +89,9 @@ impl<'a> RenderPass<'a> {
         ))
     }
 
-    /// Set cull mode operation, where `cull_mode` is the `RenderCullMode` to use.
+    /// Set cull mode operation.
+    ///
+    /// - `cull_mode`: the `RenderCullMode` to use
     pub fn set_cull_mode(&mut self, cull_mode: Option<RenderCullMode>) {
         match cull_mode {
             Some(c) => self
@@ -97,7 +101,9 @@ impl<'a> RenderPass<'a> {
         }
     }
 
-    /// Set front face operation, where `front_face` is the `RenderFrontFaceMode` to use.
+    /// Set front face operation.
+    ///
+    /// - `front_face`: the `RenderFrontFaceMode` to use
     pub fn set_front_face(&mut self, front_face: RenderFrontFaceMode) {
         self.operations
             .push(RenderOperation::SetFrontFace(front_face.to_wgpu()));
@@ -144,15 +150,19 @@ impl<'a> RenderPass<'a> {
             .push(RenderOperation::SetStencilReference(reference));
     }
 
-    /// Set uniform operation, where `name` is the program binding name, and `buffer` is the data to set the
-    /// uniform binding to.
+    /// Set uniform operation.
+    ///
+    /// - `name`: the program binding name
+    /// - `buffer`: the data to set the uniform binding to
     pub fn set_uniform(&mut self, name: &str, buffer: &'a Buffer) {
         self.operations
             .push(RenderOperation::SetUniform(name.to_string(), buffer));
     }
 
-    /// Set texture operation, where `name` is the program binding name, and `texture` is the data to set the
-    /// texture binding to.
+    /// Set texture operation.
+    ///
+    /// - `name`: the program binding name
+    /// - `texture`: the data to set the texture binding to
     pub fn set_texture(&mut self, name: &str, texture: &'a Texture) {
         self.operations
             .push(RenderOperation::SetTexture(name.to_string(), texture));

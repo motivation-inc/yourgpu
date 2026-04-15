@@ -21,8 +21,10 @@ impl BindingBuilder {
         }
     }
 
-    /// Corresponds to a WGSL `uniform` binding, with `name` being the binding name,
-    /// and `binding` as the binding location.
+    /// Corresponds to a WGSL `uniform` binding.
+    ///
+    /// - `name`: the binding name
+    /// - `binding`: the binding location
     ///
     /// # Example
     ///
@@ -49,8 +51,10 @@ impl BindingBuilder {
         self
     }
 
-    /// Corresponds to a WGSL `texture_2d` binding, with `name` being the binding name,
-    /// and `binding` as the binding location.
+    /// Corresponds to a WGSL `texture_2d` binding.
+    ///
+    /// - `name`: the binding name.
+    /// - `binding`: the binding location
     ///
     /// # Example
     ///
@@ -77,8 +81,10 @@ impl BindingBuilder {
         self
     }
 
-    /// Corresponds to a WGSL `texture_3d` binding, with `name` being the binding name,
-    /// and `binding` as the binding location.
+    /// Corresponds to a WGSL `texture_3d` binding.
+    ///
+    /// - `name`: the binding name
+    /// - `binding`: the binding location
     ///
     /// # Example
     ///
@@ -105,8 +111,10 @@ impl BindingBuilder {
         self
     }
 
-    /// Corresponds to a WGSL `texture_cube` binding, with `name` being the binding name,
-    /// and `binding` as the binding location.
+    /// Corresponds to a WGSL `texture_cube` binding.
+    ///
+    /// - `name`: the binding name,
+    /// - `binding`: the binding location.
     ///
     /// # Example
     ///
