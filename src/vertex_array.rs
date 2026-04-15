@@ -102,8 +102,10 @@ impl VertexLayoutBuilder {
         }
     }
 
-    /// Appends a new attribute, where `location` is the specified location in the vertex shader, and `format`
-    /// is the format of the attribute.
+    /// Appends a new attribute.
+    ///
+    /// - `location`: the specified location in the vertex shader
+    /// - `format`: the format of the attribute
     ///
     /// # Example
     ///
@@ -119,7 +121,7 @@ impl VertexLayoutBuilder {
     }
 }
 
-/// A vertex array object, vertex + index buffers.
+/// A vertex array object.
 ///
 /// Created using `Context::vertex_array`.
 pub struct VertexArray {
