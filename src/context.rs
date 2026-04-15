@@ -862,7 +862,7 @@ impl<'a> Context {
     ///     TextureDimension::TwoDimensional
     /// );
     ///
-    /// ctx.write_texture(&tex, &[0, 0, 0, 0]); // write all zeros
+    /// ctx.write_texture(&tex, bytemuck::cast_slice(&[0, 0, 0, 0])); // write all zeros
     /// ```
     pub fn write_texture(&self, texture: &Texture, data: &[u8]) {
         let (width, height) = (texture.width, texture.height);
