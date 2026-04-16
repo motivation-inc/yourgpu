@@ -4,7 +4,6 @@ use crate::{
     caching::{BindGroupKey, PipelineKey},
     program::Program,
     render_pass::{RenderOperation, RenderPass},
-    surface::Surface,
     texture::{Texture, TextureFormat},
     vertex_array::{VertexArray, VertexLayoutBuilder},
     window::WindowSurface,
@@ -84,11 +83,16 @@ impl<'a> Context {
         let size = window.inner_size();
         let surface = self.instance.create_surface(window.clone()).unwrap();
         let surface_caps = surface.get_capabilities(&self.adapter);
-        let surface_format = surface_caps.formats.iter().copied().find(|f| f.is_srgb());
+        let surface_format = surface_caps
+            .formats
+            .iter()
+            .copied()
+            .find(|f| f.is_srgb())
+            .expect("Unable to find an srgb surface format for window surface");
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format.unwrap(),
+            format: surface_format,
             width: size.width,
             height: size.height,
             present_mode: surface_caps.present_modes[0],
@@ -97,11 +101,7 @@ impl<'a> Context {
             desired_maximum_frame_latency: 2,
         };
 
-        surface.configure(&self.device, &config);
-
-        WindowSurface {
-            window_surface: surface,
-        }
+        WindowSurface { surface, config }
     }
 
     /// Constructs a new `Program` object,
@@ -451,8 +451,51 @@ impl<'a> Context {
 
         f(&mut r);
 
-        let clear_color = r
-            .operations
+        self.render_view(
+            program,
+            &texture.view,
+            texture.format.to_wgpu(),
+            depth_texture.map(|d| &d.view),
+            r.operations,
+        );
+    }
+
+    /// A single render pass for a `WindowSurface` object.
+    ///
+    /// This function will request the current frame from the window, potentially panicking if the
+    /// function fails to acquire the next swap chain texture.
+    pub fn render_window<F>(&mut self, program: &Program, window: &WindowSurface, f: F)
+    where
+        F: FnOnce(&mut RenderPass),
+    {
+        let mut r = RenderPass {
+            operations: Vec::new(),
+        };
+
+        f(&mut r);
+
+        let frame = window
+            .surface
+            .get_current_texture()
+            .expect("Failed to acquire next swap chain texture");
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        self.render_view(program, &view, window.config.format, None, r.operations);
+
+        frame.present();
+    }
+
+    fn render_view(
+        &mut self,
+        program: &Program,
+        view: &wgpu::TextureView,
+        format: wgpu::TextureFormat,
+        depth_view: Option<&wgpu::TextureView>,
+        operations: Vec<RenderOperation<'a>>,
+    ) {
+        let clear_color = operations
             .iter()
             .find_map(|op| match op {
                 RenderOperation::Clear(red, green, blue, alpha) => Some(wgpu::Color {
@@ -468,7 +511,6 @@ impl<'a> Context {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        let view = &texture.view;
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -480,28 +522,19 @@ impl<'a> Context {
                 },
                 depth_slice: None,
             })],
-            depth_stencil_attachment: match depth_texture {
-                Some(t) => Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &t.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0), // farthest depth
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
+            depth_stencil_attachment: depth_view.map(|dv| wgpu::RenderPassDepthStencilAttachment {
+                view: dv,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
                 }),
-                None => None,
-            },
+                stencil_ops: None,
+            }),
             timestamp_writes: None,
             occlusion_query_set: None,
             multiview_mask: None,
         });
 
-        // which binding names are actually defined in the program
-        let valid_binding_names = program
-            .bindings
-            .keys()
-            .map(|b| b.to_owned())
-            .collect::<Vec<String>>();
         let mut buffers: HashMap<String, &'a Buffer> = HashMap::new();
         let mut textures: HashMap<String, &'a Texture> = HashMap::new();
         let mut cull_mode: Option<wgpu::Face> = wgpu::PrimitiveState::default().cull_mode;
@@ -509,7 +542,7 @@ impl<'a> Context {
         let mut depth_config: Option<DepthConfig> = None;
         let mut stencil_config: Option<StencilConfig> = None;
 
-        for operation in r.operations {
+        for operation in operations {
             match operation {
                 RenderOperation::SetViewport(x, y, w, h, min_depth, max_depth) => {
                     pass.set_viewport(x, y, w, h, min_depth, max_depth);
@@ -525,14 +558,14 @@ impl<'a> Context {
                     pass.set_stencil_reference(rf);
                 }
                 RenderOperation::SetUniform(name, buffer) => {
-                    if !valid_binding_names.contains(&name) {
+                    if !program.bindings.contains_key(&name) {
                         panic!("Unknown program binding name: '{name}'")
                     }
 
                     buffers.insert(name, buffer);
                 }
                 RenderOperation::SetTexture(name, texture) => {
-                    if !valid_binding_names.contains(&name) {
+                    if !program.bindings.contains_key(&name) {
                         panic!("Unknown program binding name: '{name}'")
                     }
 
@@ -598,7 +631,7 @@ impl<'a> Context {
                     );
                     let pipeline = self.get_or_create_pipeline(
                         &program,
-                        texture.format(),
+                        format,
                         cull_mode,
                         front_face,
                         depth_config,
@@ -622,19 +655,7 @@ impl<'a> Context {
         }
 
         drop(pass); // drop the mut reference to encoder
-
         self.queue.submit(Some(encoder.finish()));
-    }
-
-    pub fn render_window<F>(&self, window: &WindowSurface, f: F)
-    where
-        F: FnOnce(&mut RenderPass),
-    {
-        let mut r = RenderPass {
-            operations: Vec::new(),
-        };
-
-        f(&mut r);
     }
 
     /// Read data (in bytes) from a referenced `Buffer` object.

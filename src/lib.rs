@@ -9,7 +9,6 @@ mod context;
 mod depth_stencil;
 mod program;
 mod render_pass;
-mod surface;
 mod texture;
 mod vertex_array;
 mod window;

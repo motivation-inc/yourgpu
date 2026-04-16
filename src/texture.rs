@@ -1,5 +1,3 @@
-use crate::surface::Surface;
-
 /// Describes the format of the texture data.
 pub enum TextureFormat {
     // color
@@ -100,10 +98,4 @@ pub struct Texture {
     pub(crate) sampler: wgpu::Sampler,
     pub(crate) height: u32,
     pub(crate) width: u32,
-}
-
-impl Surface for Texture {
-    fn format(&self) -> wgpu::TextureFormat {
-        self.format.to_wgpu()
-    }
 }
