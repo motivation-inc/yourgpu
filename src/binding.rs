@@ -113,8 +113,8 @@ impl BindingBuilder {
 
     /// Corresponds to a WGSL `texture_cube` binding.
     ///
-    /// - `name`: the binding name,
-    /// - `binding`: the binding location.
+    /// - `name`: the binding name
+    /// - `binding`: the binding location
     ///
     /// # Example
     ///
