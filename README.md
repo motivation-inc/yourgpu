@@ -4,16 +4,12 @@ yourgpu is an easy-to-use modern graphics API for Rust. It dramatically simplifi
 
 ```rust
 use image::{ImageBuffer, Rgba};
-use yourgpu::{
-    BindingBuilder, BufferType, Context, TextureDimension, TextureFormat, TextureType,
-    VertexAttributeFormat, VertexLayoutBuilder,
-};
+use yourgpu::Context;
 
 fn main() {
     let mut ctx = Context::new();
-    let buf = ctx.buffer(
+    let buf = ctx.storage_buffer(
         b"Hello world!",
-        BufferType::Storage
     );
     
     println!("Data from GPU: {}", String::from_utf8_lossy(&ctx.read_buffer(&buf)))
