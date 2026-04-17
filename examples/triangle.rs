@@ -28,7 +28,7 @@ fn main() {
             }
         "#,
         ),
-        BindingBuilder::new().uniform("u_color", 0),
+        &[BindingBuilder::new(0).uniform("u_color", 0)],
     );
     let tex = ctx.texture(
         (1080, 1080, 1),

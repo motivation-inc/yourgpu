@@ -2,21 +2,25 @@ use std::collections::HashMap;
 
 /// Describes how a shader program's bindings should be laid out.
 pub struct BindingBuilder {
+    pub(crate) group: u32,
     pub(crate) entries: HashMap<String, wgpu::BindGroupLayoutEntry>,
 }
 
 impl BindingBuilder {
     /// Constructs a new `BindingBuilder`.
     ///
+    /// - `group`: the binding group index
+    ///
     /// # Example
     ///
     /// ```
     /// use yourgpu::BindingBuilder;
     ///
-    /// let bindings = BindingBuilder::new();
+    /// let bindings = BindingBuilder::new(0); // group 0
     /// ```
-    pub fn new() -> Self {
+    pub fn new(group: u32) -> Self {
         Self {
+            group,
             entries: HashMap::new(),
         }
     }
@@ -31,7 +35,7 @@ impl BindingBuilder {
     /// ```
     /// use yourgpu::BindingBuilder;
     ///
-    /// let bindings = BindingBuilder::new().uniform("u_color", 0);
+    /// let bindings = BindingBuilder::new(0).uniform("u_color", 0);
     /// ```
     pub fn uniform(mut self, name: &str, binding: u32) -> Self {
         self.entries.insert(
@@ -61,7 +65,7 @@ impl BindingBuilder {
     /// ```
     /// use yourgpu::BindingBuilder;
     ///
-    /// let bindings = BindingBuilder::new().texture_2d("tex", 0);
+    /// let bindings = BindingBuilder::new(0).texture_2d("tex", 0);
     /// ```
     pub fn texture_2d(mut self, name: &str, binding: u32) -> Self {
         self.entries.insert(
@@ -91,7 +95,7 @@ impl BindingBuilder {
     /// ```
     /// use yourgpu::BindingBuilder;
     ///
-    /// let bindings = BindingBuilder::new().texture_3d("tex", 0);
+    /// let bindings = BindingBuilder::new(0).texture_3d("tex", 0);
     /// ```
     pub fn texture_3d(mut self, name: &str, binding: u32) -> Self {
         self.entries.insert(
@@ -121,7 +125,7 @@ impl BindingBuilder {
     /// ```
     /// use yourgpu::BindingBuilder;
     ///
-    /// let bindings = BindingBuilder::new().texture_cube("tex", 0);
+    /// let bindings = BindingBuilder::new(0).texture_cube("tex", 0);
     /// ```
     pub fn texture_cube(mut self, name: &str, binding: u32) -> Self {
         self.entries.insert(

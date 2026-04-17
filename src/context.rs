@@ -31,7 +31,7 @@ pub struct Context {
     device: wgpu::Device,
     queue: wgpu::Queue,
     pipeline_cache: HashMap<PipelineKey, Rc<wgpu::RenderPipeline>>,
-    bind_group_cache: HashMap<BindGroupKey, Rc<wgpu::BindGroup>>,
+    bind_group_cache: HashMap<BindGroupKey, Rc<HashMap<u32, wgpu::BindGroup>>>,
     next_id: usize,
 }
 
@@ -108,7 +108,7 @@ impl<'a> Context {
     ///
     /// - `vertex_shader`: the vertex shader source
     /// - `fragment_shader`: the fragment shader source (if `None`, the program defaults to no fragment shader)
-    /// - `binding`: how the bindings in the shader are described
+    /// - `bindings`: an array of `BindingBuilder`, where each `BindingBuilder` in `bindings` represents a single binding group
     ///
     /// This function requires the shader source to be valid [WebGPU Shading Language](https://www.w3.org/TR/WGSL/).
     ///
@@ -118,13 +118,13 @@ impl<'a> Context {
     /// use yourgpu::{Context, BindingBuilder};
     ///
     /// let mut ctx = Context::new();
-    /// let prog = ctx.program("// vertex shader", Some("// fragment shader"), BindingBuilder::new());
+    /// let prog = ctx.program("// vertex shader", Some("// fragment shader"), &[BindingBuilder::new(0)]);
     /// ```
     pub fn program(
         &mut self,
         vertex_shader: &str,
         fragment_shader: Option<&str>,
-        binding: BindingBuilder,
+        bindings: &[BindingBuilder],
     ) -> Program {
         let vs_module = self
             .device
@@ -140,33 +140,50 @@ impl<'a> Context {
                 })
         });
 
-        let bind_group_layout =
-            self.device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: None,
-                    entries: &binding
-                        .entries
-                        .values()
-                        .map(|b| b.to_owned())
-                        .collect::<Vec<wgpu::BindGroupLayoutEntry>>(),
-                });
+        let mut bind_group_entries = HashMap::new();
+        let mut bind_group_layouts = HashMap::new();
+        let mut entry_names = Vec::new();
+
+        for binding in bindings {
+            for (name, _) in &binding.entries {
+                entry_names.push(name.to_owned());
+            }
+
+            bind_group_entries.insert(binding.group, binding.entries.clone());
+            bind_group_layouts.insert(
+                binding.group,
+                self.device
+                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: None,
+                        entries: &binding
+                            .entries
+                            .values()
+                            .map(|b| b.to_owned())
+                            .collect::<Vec<wgpu::BindGroupLayoutEntry>>(),
+                    }),
+            );
+        }
+
         let pipeline_layout = self
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
-                bind_group_layouts: &[&bind_group_layout],
+                bind_group_layouts: &bind_group_layouts
+                    .values()
+                    .collect::<Vec<&wgpu::BindGroupLayout>>(),
                 immediate_size: 0,
             });
 
         let program = Program {
             id: self.next_id,
             pipeline_layout_id: self.next_id,
-            bind_group_layout_id: self.next_id + binding.entries.keys().len(),
+            bind_group_layout_id: self.next_id,
             vertex_shader: vs_module,
             fragment_shader: fs_module,
-            bind_group_layout,
+            bind_group_layouts,
             pipeline_layout,
-            bindings: binding.entries,
+            bind_group_entries,
+            entry_names,
         };
 
         self.next_id += 1;
@@ -371,8 +388,15 @@ impl<'a> Context {
     /// use yourgpu::{Context, BufferType, VertexLayoutBuilder, VertexAttributeFormat, BindingBuilder};
     ///
     /// let mut ctx = Context::new();
-    /// let prog = ctx.program("// vertex_shader", Some("// fragment_shader"), BindingBuilder::new());
-    /// let vbo = ctx.buffer(&[0.0_f32, 0.6, 0.0, -0.6, -0.6, 0.0, 0.6, -0.6, 0.0], BufferType::Vertex);
+    /// let prog = ctx.program("// vertex_shader", Some("// fragment_shader"), &[BindingBuilder::new(0)]);
+    /// let vbo = ctx.buffer(
+    ///     &[
+    ///         0.0_f32, 0.6, 0.0,
+    ///         -0.6, -0.6, 0.0,
+    ///         0.6, -0.6, 0.0
+    ///     ],
+    ///     BufferType::Vertex
+    /// );
     ///
     /// let vao = ctx.vertex_array(
     ///     &vbo,
@@ -430,7 +454,7 @@ impl<'a> Context {
     ///     TextureType::RenderAttachment,
     ///     TextureDimension::TwoDimensional
     /// );
-    /// let prog = ctx.program("// vertex shader", Some("// fragment shader"), BindingBuilder::new());
+    /// let prog = ctx.program("// vertex shader", Some("// fragment shader"), &[BindingBuilder::new(0)]);
     ///
     /// ctx.render_texture(&prog, &tex, None, |r| {
     ///     r.clear(0.0, 1.0, 0.0, 1.0) // solid green
@@ -558,14 +582,14 @@ impl<'a> Context {
                     pass.set_stencil_reference(rf);
                 }
                 RenderOperation::SetUniform(name, buffer) => {
-                    if !program.bindings.contains_key(&name) {
+                    if !program.entry_names.contains(&name) {
                         panic!("Unknown program binding name: '{name}'")
                     }
 
                     buffers.insert(name, buffer);
                 }
                 RenderOperation::SetTexture(name, texture) => {
-                    if !program.bindings.contains_key(&name) {
+                    if !program.entry_names.contains(&name) {
                         panic!("Unknown program binding name: '{name}'")
                     }
 
@@ -574,60 +598,53 @@ impl<'a> Context {
                 RenderOperation::Draw(vertex_array) => {
                     let mut buffer_ids: Vec<usize> = Vec::new();
                     let mut texture_ids: Vec<usize> = Vec::new();
+                    let mut group_entries: HashMap<u32, Vec<wgpu::BindGroupEntry>> = HashMap::new();
 
-                    let entries: Vec<_> = program
-                        .bindings
-                        .iter()
-                        .map(|(name, binding)| match binding.ty {
-                            wgpu::BindingType::Buffer {
-                                ty: _,
-                                has_dynamic_offset: _,
-                                min_binding_size: _,
-                            } => {
-                                let buffer = buffers.get(name).unwrap();
-                                buffer_ids.push(buffer.id);
+                    for (group, bindings) in &program.bind_group_entries {
+                        for (name, binding) in bindings {
+                            let entry = match binding.ty {
+                                wgpu::BindingType::Buffer { .. } => {
+                                    let buffer = buffers.get(name).unwrap();
+                                    buffer_ids.push(buffer.id);
 
-                                wgpu::BindGroupEntry {
-                                    binding: binding.binding,
-                                    resource: buffer.buffer.as_entire_binding(),
+                                    wgpu::BindGroupEntry {
+                                        binding: binding.binding,
+                                        resource: buffer.buffer.as_entire_binding(),
+                                    }
                                 }
-                            }
-                            wgpu::BindingType::Texture {
-                                sample_type: _,
-                                view_dimension: _,
-                                multisampled: _,
-                            } => {
-                                let tex = textures.get(name).unwrap();
-                                texture_ids.push(tex.id);
+                                wgpu::BindingType::Texture { .. } => {
+                                    let tex = textures.get(name).unwrap();
+                                    texture_ids.push(tex.id);
 
-                                wgpu::BindGroupEntry {
-                                    binding: binding.binding,
-                                    resource: wgpu::BindingResource::TextureView(&tex.view),
+                                    wgpu::BindGroupEntry {
+                                        binding: binding.binding,
+                                        resource: wgpu::BindingResource::TextureView(&tex.view),
+                                    }
                                 }
-                            }
-                            wgpu::BindingType::Sampler(_) => {
-                                let tex = textures.get(name).unwrap();
-                                texture_ids.push(tex.id);
+                                wgpu::BindingType::Sampler(_) => {
+                                    let tex = textures.get(name).unwrap();
+                                    texture_ids.push(tex.id);
 
-                                wgpu::BindGroupEntry {
-                                    binding: binding.binding,
-                                    resource: wgpu::BindingResource::Sampler(&tex.sampler),
+                                    wgpu::BindGroupEntry {
+                                        binding: binding.binding,
+                                        resource: wgpu::BindingResource::Sampler(&tex.sampler),
+                                    }
                                 }
-                            }
-                            _ => {
-                                panic!("Unknown binding type.")
-                            }
-                        })
-                        .collect();
+                                _ => panic!("Unknown binding type."),
+                            };
+
+                            group_entries.entry(*group).or_default().push(entry);
+                        }
+                    }
 
                     buffer_ids.sort();
                     texture_ids.sort();
 
-                    let bind_group = self.get_or_create_bind_group(
+                    let bind_groups = self.get_or_create_bind_group(
                         &program,
                         &buffer_ids,
                         &texture_ids,
-                        &entries,
+                        &group_entries,
                     );
                     let pipeline = self.get_or_create_pipeline(
                         &program,
@@ -640,7 +657,11 @@ impl<'a> Context {
                     );
 
                     pass.set_pipeline(&pipeline);
-                    pass.set_bind_group(0, &*bind_group, &[]);
+
+                    for (group, bg) in &*bind_groups {
+                        pass.set_bind_group(group.to_owned(), bg, &[]);
+                    }
+
                     pass.set_vertex_buffer(0, vertex_array.vertex_buffer.slice(..));
 
                     if let Some(index) = &vertex_array.index_buffer {
@@ -1026,8 +1047,8 @@ impl<'a> Context {
         program: &Program,
         buffer_ids: &[usize],
         texture_ids: &[usize],
-        entries: &[wgpu::BindGroupEntry],
-    ) -> Rc<wgpu::BindGroup> {
+        group_entries: &HashMap<u32, Vec<wgpu::BindGroupEntry>>,
+    ) -> Rc<HashMap<u32, wgpu::BindGroup>> {
         let key = BindGroupKey {
             program_id: program.id,
             layout_id: program.bind_group_layout_id,
@@ -1038,13 +1059,24 @@ impl<'a> Context {
         self.bind_group_cache
             .entry(key)
             .or_insert_with(|| {
-                let bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: None,
-                    layout: &program.bind_group_layout,
-                    entries,
-                });
+                let mut bind_groups = HashMap::new();
 
-                Rc::new(bg)
+                for (group, layout) in &program.bind_group_layouts {
+                    let entries = group_entries
+                        .get(group)
+                        .expect("Missing bind group entries for group");
+
+                    bind_groups.insert(
+                        group.to_owned(),
+                        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                            label: None,
+                            layout: &layout,
+                            entries: entries,
+                        }),
+                    );
+                }
+
+                Rc::new(bind_groups)
             })
             .clone()
     }
