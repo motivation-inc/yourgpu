@@ -1,6 +1,6 @@
 use image::{ImageBuffer, Rgba};
 use yourgpu::{
-    BufferType, Context, TextureDimension, TextureFormat, TextureType, VertexAttributeFormat,
+    Context, TextureDimension, TextureFormat, TextureType, VertexAttributeFormat,
     VertexLayoutBuilder,
 };
 
@@ -43,15 +43,12 @@ fn main() {
     );
 
     // vertex buffer
-    let vbo = ctx.buffer(
-        &[
-            // position    // color
-            0.0_f32, 0.6, 0.0, 1.0, 0.0, 0.0, // top = red
-            -0.6, -0.6, 0.0, 0.0, 1.0, 0.0, // left = green
-            0.6, -0.6, 0.0, 0.0, 0.0, 1.0, // right = blue
-        ],
-        BufferType::Vertex,
-    );
+    let vbo = ctx.vertex_buffer(&[
+        // position    // color
+        0.0_f32, 0.6, 0.0, 1.0, 0.0, 0.0, // top = red
+        -0.6, -0.6, 0.0, 0.0, 1.0, 0.0, // left = green
+        0.6, -0.6, 0.0, 0.0, 0.0, 1.0, // right = blue
+    ]);
 
     // vertex array
     let vao = ctx.vertex_array(

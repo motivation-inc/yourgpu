@@ -1,6 +1,6 @@
 use crate::{
-    BindingBuilder, BufferType, DepthConfig, StencilConfig, TextureDimension, TextureType,
-    buffer::Buffer,
+    BindingBuilder, DepthConfig, StencilConfig, TextureDimension, TextureType,
+    buffer::{Buffer, BufferType},
     caching::{BindGroupKey, PipelineKey},
     program::Program,
     render_pass::{RenderOperation, RenderPass},
@@ -191,22 +191,95 @@ impl<'a> Context {
         program
     }
 
-    /// Constructs a new `Buffer` object.
+    /// Constructs a new `Buffer` object with the vertex usage.
     ///
-    /// - `data`: an array of data implementing the `bytemuck::Pod` trait
+    /// - `data`: an array of f32 vertex data
     ///
-    /// `Buffer` objects store an array of unformatted memory allocated on the GPU, and are used for
-    /// GPU-based data storage.
+    /// Vertex buffers are read by the vertex shader using the configured vertex layout (implicated by
+    /// the `VertexArray` object.)
     ///
     /// # Example
     ///
     /// ```
-    /// use yourgpu::{Context, BufferType};
+    /// use yourgpu::Context;
     ///
     /// let mut ctx = Context::new();
-    /// let buffer = ctx.buffer(&[0.0, 0.0, 0.0], BufferType::Vertex);
+    /// let buf = ctx.vertex_buffer(
+    ///     &[
+    ///         0.0, 0.6, 0.0,
+    ///        -0.6, -0.6, 0.0,
+    ///         0.6, -0.6, 0.0
+    ///     ]
+    /// );
     /// ```
-    pub fn buffer<T: bytemuck::Pod>(&mut self, data: &[T], buffer_type: BufferType) -> Buffer {
+    pub fn vertex_buffer(&mut self, data: &[f32]) -> Buffer {
+        self.buffer(data, BufferType::Vertex)
+    }
+
+    /// Constructs a new `Buffer` object with the index usage.
+    ///
+    /// - `data`: an array of u32 index data
+    ///
+    /// Index buffers define how vertices are reused during drawing.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use yourgpu::Context;
+    ///
+    /// let mut ctx = Context::new();
+    /// let buf = ctx.index_buffer(&[0, 1, 2]); // triangle
+    /// ```
+    pub fn index_buffer(&mut self, data: &[u32]) -> Buffer {
+        self.buffer(data, BufferType::Index)
+    }
+
+    /// Constructs a new `Buffer` object with the uniform usage.
+    ///
+    /// - `data`: uniform data
+    ///
+    /// Uniform buffers are read-only inputs shared across shader invocations. Data must
+    /// follow [WGSL alignment rules](https://webgpufundamentals.org/webgpu/lessons/webgpu-memory-layout.html).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use yourgpu::Context;
+    /// use bytemuck::{Pod, Zeroable};
+    ///
+    /// #[derive(Copy, Clone, Pod, Zeroable)]
+    /// #[repr(C)]
+    /// struct Color {
+    ///     pub r: f32,
+    ///     pub g: f32,
+    ///     pub b: f32,
+    ///     pub a: f32,
+    /// }
+    ///
+    /// let mut ctx = Context::new();
+    /// let buf = ctx.uniform_buffer(
+    ///     &Color {
+    ///         r: 0.0,
+    ///         g: 1.0,
+    ///         b: 0.0,
+    ///         a: 1.0,
+    ///     }
+    /// ); // color buffer
+    /// ```
+    pub fn uniform_buffer<T: bytemuck::Pod>(&mut self, data: &T) -> Buffer {
+        self.buffer(std::slice::from_ref(data), BufferType::Uniform)
+    }
+
+    /// Constructs a new `Buffer` object with the storage usage.
+    ///
+    /// - `data`: storage data
+    ///
+    /// Storage buffers only allow read-write data access in shaders.
+    pub fn storage_buffer<T: bytemuck::Pod>(&mut self, data: &[T]) -> Buffer {
+        self.buffer(data, BufferType::Storage)
+    }
+
+    fn buffer<T: bytemuck::Pod>(&mut self, data: &[T], buffer_type: BufferType) -> Buffer {
         let bytes = bytemuck::cast_slice(data);
         let byte_size = (std::mem::size_of_val(data)) as u64;
 
@@ -224,18 +297,12 @@ impl<'a> Context {
                         | wgpu::BufferUsages::COPY_DST
                         | wgpu::BufferUsages::COPY_SRC
                 }
-                BufferType::Storage => {
-                    wgpu::BufferUsages::STORAGE
-                        | wgpu::BufferUsages::COPY_DST
-                        | wgpu::BufferUsages::COPY_SRC
-                }
+                BufferType::Storage => wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
                 BufferType::Uniform => {
                     wgpu::BufferUsages::UNIFORM
                         | wgpu::BufferUsages::COPY_DST
                         | wgpu::BufferUsages::COPY_SRC
                 }
-                BufferType::CopyDst => wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
-                BufferType::CopySrc => wgpu::BufferUsages::COPY_SRC,
             },
             mapped_at_creation: false,
         });
@@ -385,17 +452,16 @@ impl<'a> Context {
     /// # Example
     ///
     /// ```
-    /// use yourgpu::{Context, BufferType, VertexLayoutBuilder, VertexAttributeFormat, BindingBuilder};
+    /// use yourgpu::{Context, VertexLayoutBuilder, VertexAttributeFormat, BindingBuilder};
     ///
     /// let mut ctx = Context::new();
     /// let prog = ctx.program("// vertex_shader", Some("// fragment_shader"), &[BindingBuilder::new(0)]);
-    /// let vbo = ctx.buffer(
+    /// let vbo = ctx.vertex_buffer(
     ///     &[
-    ///         0.0_f32, 0.6, 0.0,
+    ///         0.0, 0.6, 0.0,
     ///         -0.6, -0.6, 0.0,
     ///         0.6, -0.6, 0.0
     ///     ],
-    ///     BufferType::Vertex
     /// );
     ///
     /// let vao = ctx.vertex_array(
@@ -684,18 +750,17 @@ impl<'a> Context {
     /// - `buffer`: the buffer to read
     ///
     /// This function is **thread-blocking**, as reading data from the GPU to the CPU is a slow,
-    /// inefficient process. Only recommended for compute-use and not render loops or graphics-heavy
-    /// work.
+    /// inefficient process. It is advised to only use this function when reading is strictly necessary.
     ///
     /// # Example
     ///
     /// ```
-    /// use yourgpu::{Context, BufferType};
+    /// use yourgpu::Context;
     ///
     /// let mut ctx = Context::new();
-    /// let buffer = ctx.buffer(&[0.0, 0.0, 0.0], BufferType::Vertex);
+    /// let buffer = ctx.vertex_buffer(&[0.0, 0.0, 0.0]);
     ///
-    /// let data: Vec<f64> = bytemuck::cast_slice(&ctx.read_buffer(&buffer)).to_vec();
+    /// let data: Vec<f32> = bytemuck::cast_slice(&ctx.read_buffer(&buffer)).to_vec();
     /// assert_eq!(vec![0.0, 0.0, 0.0], data);
     /// ```
     pub fn read_buffer(&self, buffer: &Buffer) -> Vec<u8> {
@@ -756,24 +821,27 @@ impl<'a> Context {
     /// # Example
     ///
     /// ```
-    /// use yourgpu::{Context, BufferType};
+    /// use yourgpu::Context;
     ///
     /// let mut ctx = Context::new();
-    /// let buffer = ctx.buffer(&[0.0, 0.0, 0.0], BufferType::Vertex);
+    /// let buffer = ctx.vertex_buffer(&[0.0, 0.0, 0.0]);
     ///
-    /// ctx.write_buffer(&buffer, &[1.0, 1.0, 1.0]);
+    /// ctx.write_buffer(&buffer, &[1.0_f32, 1.0, 1.0]); // data must be explicitly defined
     /// ```
     pub fn write_buffer<T: bytemuck::Pod>(
         &self,
         buffer: &Buffer,
-        data: &[T],
+        data: &T,
     ) -> Result<(), &'static str> {
         if !buffer.buffer.usage().contains(wgpu::BufferUsages::COPY_DST) {
             return Err("Buffer must have COPY_DST usage");
         }
 
-        self.queue
-            .write_buffer(&buffer.buffer, 0, bytemuck::cast_slice(data));
+        self.queue.write_buffer(
+            &buffer.buffer,
+            0,
+            bytemuck::cast_slice(std::slice::from_ref(data)),
+        );
 
         Ok(())
     }

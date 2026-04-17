@@ -15,7 +15,6 @@ mod window;
 
 pub use {
     binding::BindingBuilder,
-    buffer::BufferType,
     context::Context,
     depth_stencil::{Comparison, DepthConfig, StencilConfig, StencilFaceConfig, StencilOperation},
     render_pass::{RenderCullMode, RenderFrontFaceMode},
