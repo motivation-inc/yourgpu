@@ -3,7 +3,6 @@
 yourgpu is an easy-to-use modern graphics API for Rust. It dramatically simplifies going from code to screen, taking influence from [ModernGL](https://github.com/moderngl/moderngl), whilst using [wgpu](https://wgpu.rs/) as the rendering backend.  
 
 ```rust
-use image::{ImageBuffer, Rgba};
 use yourgpu::Context;
 
 fn main() {
