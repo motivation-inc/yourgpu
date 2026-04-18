@@ -556,7 +556,7 @@ impl<'a> Context {
     /// function fails to acquire the next swap chain texture.
     pub fn render_window<F>(&mut self, program: &Program, window: &WindowSurface, f: F)
     where
-        F: FnOnce(&mut RenderPass),
+        F: FnOnce(&mut RenderPass<'a>),
     {
         let mut r = RenderPass {
             operations: Vec::new(),

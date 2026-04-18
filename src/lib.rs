@@ -15,9 +15,12 @@ mod window;
 
 pub use {
     binding::BindingBuilder,
+    buffer::Buffer,
     context::Context,
     depth_stencil::{Comparison, DepthConfig, StencilConfig, StencilFaceConfig, StencilOperation},
+    program::Program,
     render_pass::{RenderCullMode, RenderFrontFaceMode},
-    texture::{TextureDimension, TextureFormat, TextureType},
-    vertex_array::{VertexAttributeFormat, VertexLayoutBuilder},
+    texture::{Texture, TextureDimension, TextureFormat, TextureType},
+    vertex_array::{VertexArray, VertexAttributeFormat, VertexLayoutBuilder},
+    window::WindowSurface,
 };
