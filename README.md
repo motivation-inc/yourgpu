@@ -16,10 +16,11 @@ fn main() {
 ```
 
 ## Features
-- Simpler and easier to learn compared to WGPU
+- Simple and easy to learn :)
 - Contexts are headless by default (no screen required)
-- WGSL shading language support
-- Exposes `wgpu::*` methods for easy integration with WGPU-dependent libraries like `egui_wgpu` 
+- First-class [winit](https://github.com/rust-windowing/winit) support
+- Built around the [WebGPU Shading Language](https://www.w3.org/TR/WGSL/)
+- Exposed `wgpu::*` methods for easy integration with WGPU-dependent libraries like `egui_wgpu` 
 
 ## Free & Open-Source
 
