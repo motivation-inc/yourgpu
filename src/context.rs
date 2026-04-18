@@ -632,7 +632,10 @@ impl<'a> Context {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: wgpu::StoreOp::Store,
                 }),
-                stencil_ops: None,
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(0),
+                    store: wgpu::StoreOp::Store,
+                }),
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
@@ -729,6 +732,7 @@ impl<'a> Context {
                     let pipeline = self.get_or_create_pipeline(
                         &program,
                         format,
+                        depth_view.map(|d| d.texture().format()),
                         cull_mode,
                         front_face,
                         depth_config,
@@ -1035,7 +1039,8 @@ impl<'a> Context {
     fn get_or_create_pipeline(
         &mut self,
         program: &Program,
-        texture_format: wgpu::TextureFormat,
+        color_format: wgpu::TextureFormat,
+        depth_format: Option<wgpu::TextureFormat>,
         cull_mode: Option<wgpu::Face>,
         front_face: wgpu::FrontFace,
         depth_config: Option<DepthConfig>,
@@ -1050,7 +1055,11 @@ impl<'a> Context {
 
             if let Some(cfg) = dcfg {
                 Some(wgpu::DepthStencilState {
-                    format: texture_format,
+                    format: if let Some(fmt) = depth_format {
+                        fmt
+                    } else {
+                        color_format
+                    },
                     depth_write_enabled: cfg.write,
                     depth_compare: cfg.compare,
                     stencil: match stencil_config {
@@ -1076,7 +1085,7 @@ impl<'a> Context {
         };
 
         let color_target = Some(wgpu::ColorTargetState {
-            format: texture_format,
+            format: color_format,
             blend: Some(wgpu::BlendState::REPLACE),
             write_mask: wgpu::ColorWrites::ALL,
         });
