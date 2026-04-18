@@ -33,7 +33,6 @@ impl RenderFrontFaceMode {
 }
 
 pub(crate) enum RenderOperation<'a> {
-    Clear(f64, f64, f64, f64),
     Draw(&'a VertexArray),
     SetCullMode(Option<wgpu::Face>),
     SetFrontFace(wgpu::FrontFace),
@@ -53,13 +52,17 @@ pub(crate) enum RenderOperation<'a> {
 ///
 /// Created using `Context::render_texture` or `Context::render_window`.
 pub struct RenderPass<'a> {
+    pub(crate) clear: wgpu::Color,
     pub(crate) operations: Vec<RenderOperation<'a>>,
 }
 
 impl<'a> RenderPass<'a> {
     /// Clear operation filling the screen with the specified RGBA data.
+    ///
+    /// The last clear operation is used by default, as only one clear operation
+    /// is allowed per render pass.
     pub fn clear(&mut self, r: f64, g: f64, b: f64, a: f64) {
-        self.operations.push(RenderOperation::Clear(r, g, b, a));
+        self.clear = wgpu::Color { r, g, b, a }
     }
 
     /// Draw operation for a `VertexArray` object.

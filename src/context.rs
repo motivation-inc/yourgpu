@@ -538,6 +538,7 @@ impl<'a> Context {
         F: FnOnce(&mut RenderPass<'a>),
     {
         let mut r = RenderPass {
+            clear: wgpu::Color::BLACK,
             operations: Vec::new(),
         };
 
@@ -548,6 +549,7 @@ impl<'a> Context {
             &texture.view,
             texture.format.to_wgpu(),
             depth_texture.map(|d| &d.view),
+            r.clear,
             r.operations,
         );
     }
@@ -561,6 +563,7 @@ impl<'a> Context {
         F: FnOnce(&mut RenderPass<'a>),
     {
         let mut r = RenderPass {
+            clear: wgpu::Color::BLACK,
             operations: Vec::new(),
         };
 
@@ -586,7 +589,14 @@ impl<'a> Context {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        self.render_view(program, &view, window.config.format, None, r.operations);
+        self.render_view(
+            program,
+            &view,
+            window.config.format,
+            None,
+            r.clear,
+            r.operations,
+        );
 
         frame.present();
     }
@@ -597,21 +607,9 @@ impl<'a> Context {
         view: &wgpu::TextureView,
         format: wgpu::TextureFormat,
         depth_view: Option<&wgpu::TextureView>,
+        clear_color: wgpu::Color,
         operations: Vec<RenderOperation<'a>>,
     ) {
-        let clear_color = operations
-            .iter()
-            .find_map(|op| match op {
-                RenderOperation::Clear(red, green, blue, alpha) => Some(wgpu::Color {
-                    r: *red,
-                    g: *green,
-                    b: *blue,
-                    a: *alpha,
-                }),
-                _ => None,
-            })
-            .unwrap_or(wgpu::Color::BLACK);
-
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
@@ -755,7 +753,6 @@ impl<'a> Context {
                         pass.draw(0..vertex_array.vertex_count, 0..1);
                     }
                 }
-                _ => {}
             }
         }
 
