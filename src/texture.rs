@@ -87,7 +87,7 @@ impl TextureDimension {
     }
 }
 
-/// A texture object, containing the texture information.
+/// A texture object.
 ///
 /// Created using `Context::texture`.
 pub struct Texture {
