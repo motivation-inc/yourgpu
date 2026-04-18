@@ -74,6 +74,7 @@ impl DepthConfig {
 
 /// A stencil buffer face configuration, used for configuring stencil buffer operations and comparison
 /// functions.
+#[derive(Clone, Copy)]
 pub struct StencilFaceConfig {
     pub(crate) compare: wgpu::CompareFunction,
     pub(crate) fail_op: wgpu::StencilOperation,
