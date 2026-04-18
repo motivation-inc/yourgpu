@@ -101,6 +101,8 @@ impl<'a> Context {
             desired_maximum_frame_latency: 2,
         };
 
+        surface.configure(&self.device, &config); // IMPORTANT: configure surface to the device
+
         WindowSurface { surface, config }
     }
 
@@ -564,10 +566,22 @@ impl<'a> Context {
 
         f(&mut r);
 
-        let frame = window
-            .surface
-            .get_current_texture()
-            .expect("Failed to acquire next swap chain texture");
+        let frame = match window.surface.get_current_texture() {
+            Ok(frame) => frame,
+            Err(wgpu::SurfaceError::Outdated) => {
+                // reconfigure the surface with the existing config to sync with the window
+                window.surface.configure(&self.device, &window.config);
+
+                return;
+            }
+            // battery dead, screen likely shut
+            Err(wgpu::SurfaceError::Lost) => {
+                window.surface.configure(&self.device, &window.config);
+
+                return;
+            }
+            Err(e) => panic!("Persistent Surface Error: {:?}", e),
+        };
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
