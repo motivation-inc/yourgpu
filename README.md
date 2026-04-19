@@ -77,6 +77,8 @@ ctx.render_texture(&prog, &tex, None,  |r| {
 });
 ```
 
+For the full example, see the file in the [examples folder](https://github.com/motivation-inc/yourgpu/blob/main/examples/01_triangle.rs).
+
 ## Free & Open-Source
 
 yourgpu is 100% free with no drawbacks or limitations. There is no "premium" version; you get the latest and greatest, all licensed under the GPL-3.0.
