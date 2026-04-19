@@ -1,0 +1,16 @@
+# Motivation Software Inc. GitHub Issue Template
+# Replace <SOFTWARE> with the name of the repository or software
+
+name: Request a feature.
+description: Request a new feature to be added to yourgpu.
+type: Feature
+labels: "state:needs triage"
+body:
+  - type: textarea
+    attributes:
+      label: Feature
+      description: Request (a realistic) feature to be potentially implemented.
+      placeholder: |
+        A gravity amount controller for Earth's internal API.
+    validations:
+      required: true

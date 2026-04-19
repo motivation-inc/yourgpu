@@ -1,0 +1,46 @@
+# Motivation Software Inc. GitHub Issue Template
+# Replace <SOFTWARE> with the name of the repository or software
+
+name: Report a bug
+description: Report a problem with yourgpu.
+type: Bug
+labels: "state:needs triage"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Is this bug already reported? Upvote the already reported bug to get it noticed faster.
+
+        Feature request? Create a new "Feature Request" issue instead.
+
+        Just have a question or need support? Make a new "Question" issue.
+  - type: textarea
+    attributes:
+      label: Errors & Logs
+      description: Any error messages, logs, or warnings spawned by the bug.
+      placeholder: |
+        Error: An error occured in line 10, column 1
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Reproduction steps
+      description: A step-by-step description of how to reproduce the bug from the latest version. The more context you provide, the easier it is to find and fix the problem fast.
+      placeholder: |
+        ```rust
+        println!("Try this"); // my error occured here!
+        ```
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: System specs
+      description: |
+        Place your system specifications below.
+      placeholder: |
+        OS: Windows
+        Memory: 16 GB
+        Architecture: x86_64
+    validations:
+      required: true

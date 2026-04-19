@@ -1,0 +1,16 @@
+# Motivation Software Inc. GitHub Issue Template
+# Replace <SOFTWARE> with the name of the repository or software
+
+name: Ask a question.
+description: Ask a question related to yourgpu.
+type: Question
+labels: "state:needs triage"
+body:
+  - type: textarea
+    attributes:
+      label: Question
+      description: Ask any questions related to yourgpu and its repository.
+      placeholder: |
+        Will the ability to control gravity be added to Earth 2.0?
+    validations:
+      required: true
