@@ -21,7 +21,7 @@ struct App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let window_attrs = Window::default_attributes().with_title("yourgpu Window - Cached");
+        let window_attrs = Window::default_attributes().with_title("yourgpu Window");
         let window = Arc::new(event_loop.create_window(window_attrs).unwrap());
 
         self.window = Some(window.clone());
