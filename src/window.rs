@@ -1,6 +1,6 @@
 /// A window surface and surface configuration.
 ///
-/// Created using `Context::attach_window`.
+/// Created using `Context::window_surface`.
 pub struct WindowSurface<'a> {
     pub(crate) surface: wgpu::Surface<'a>,
     pub(crate) config: wgpu::SurfaceConfiguration,

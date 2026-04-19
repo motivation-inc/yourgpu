@@ -79,7 +79,7 @@ impl<'a> Context {
     /// Constructs a new `WindowSurface` object from a [winit `Window` object](https://docs.rs/winit-gtk/latest/winit/window/struct.Window.html).
     ///
     /// Since a winit `Window` is created asynchronously, `window` takes an `Arc<Window>` for thread safety.
-    pub fn attach_window(&self, window: Arc<Window>) -> WindowSurface<'a> {
+    pub fn window_surface(&self, window: Arc<Window>) -> WindowSurface<'a> {
         let size = window.inner_size();
         let surface = self.instance.create_surface(window.clone()).unwrap();
         let surface_caps = surface.get_capabilities(&self.adapter);

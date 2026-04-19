@@ -25,7 +25,7 @@ impl ApplicationHandler for App {
         let window = Arc::new(event_loop.create_window(window_attrs).unwrap());
 
         self.window = Some(window.clone());
-        self.surface = Some(self.ctx.attach_window(window.clone()));
+        self.surface = Some(self.ctx.window_surface(window.clone()));
 
         // initialize resources once
         let prog = self.ctx.program(
