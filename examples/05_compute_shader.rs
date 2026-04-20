@@ -14,12 +14,11 @@ fn main() {
                 data[i] = data[i] * 2.0;
             }
         "#,
-        &[BindingBuilder::new(0).storage("data", 0, false)],
+        &[BindingBuilder::new(0).storage("data", 0, false)], // read/writable
     );
 
     let input: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0]; // data to operate on
-
-    let buf = ctx.storage_buffer(&input);
+    let buf = ctx.storage_buffer(&input); // storage buffer
 
     // compute pass
     ctx.compute(&compute_prog, |r| {
