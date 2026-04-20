@@ -276,7 +276,8 @@ impl<'a> Context {
     ///
     /// - `data`: storage data
     ///
-    /// Storage buffers only allow read-write data access in shaders.
+    /// By default, storage buffers can be read or written to, and must be declared `read_write` in the
+    /// WGSL shader program.
     pub fn storage_buffer<T: bytemuck::Pod>(&mut self, data: &[T]) -> Buffer {
         self.buffer(data, BufferType::Storage)
     }
@@ -299,7 +300,11 @@ impl<'a> Context {
                         | wgpu::BufferUsages::COPY_DST
                         | wgpu::BufferUsages::COPY_SRC
                 }
-                BufferType::Storage => wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+                BufferType::Storage => {
+                    wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::COPY_DST
+                        | wgpu::BufferUsages::COPY_SRC
+                }
                 BufferType::Uniform => {
                     wgpu::BufferUsages::UNIFORM
                         | wgpu::BufferUsages::COPY_DST
@@ -830,8 +835,8 @@ impl<'a> Context {
     ///
     /// # Errors
     ///
-    /// This function will return `Err` if the `Buffer` object does not contain the `BufferType::CopyDst` usage.
-    /// By default, vertex, index, and storage buffers contain `BufferType::CopyDst`.
+    /// This function will return `Err` if the `Buffer` object cannot be written to. By default,
+    /// vertex, index, uniform, and storage buffers are read-write enabled.
     ///
     /// # Example
     ///
@@ -849,7 +854,7 @@ impl<'a> Context {
         data: &T,
     ) -> Result<(), &'static str> {
         if !buffer.buffer.usage().contains(wgpu::BufferUsages::COPY_DST) {
-            return Err("Buffer must have COPY_DST usage");
+            return Err("Buffer is read-only");
         }
 
         self.queue.write_buffer(
