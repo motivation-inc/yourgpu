@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-/// A program object, containing all shader information.
+/// A shader program object.
 ///
 /// Created using `Context::program`.
 pub struct Program {
