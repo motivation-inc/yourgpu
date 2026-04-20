@@ -18,7 +18,7 @@ pub use {
     buffer::Buffer,
     context::Context,
     depth_stencil::{Comparison, DepthConfig, StencilConfig, StencilFaceConfig, StencilOperation},
-    program::Program,
+    program::{ComputeProgram, Program},
     render_pass::{RenderCullMode, RenderFrontFaceMode},
     texture::{Texture, TextureDimension, TextureFormat, TextureType},
     vertex_array::{VertexArray, VertexAttributeFormat, VertexLayoutBuilder},
