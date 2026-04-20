@@ -54,7 +54,7 @@ fn main() {
     // render pass
     ctx.render_texture(&prog, &tex, None, |r| {
         r.clear(0.0, 0.0, 0.0, 1.0); // black background
-        r.set_uniform("u_color", &color_buffer); // set the uniform
+        r.set_buffer("u_color", &color_buffer); // set the uniform
 
         r.draw(&vao); // draw
     });

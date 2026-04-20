@@ -41,8 +41,11 @@ pub(crate) enum RenderOperation<'a> {
     SetStencilReference(u32),
     SetViewport(f32, f32, f32, f32, f32, f32),
     SetScissorRect(u32, u32, u32, u32),
-    SetUniform(String, &'a Buffer),
+    SetBuffer(String, &'a Buffer),
     SetTexture(String, &'a Texture),
+
+    // compute specific
+    DispatchWorkgroups(u32, u32, u32),
 }
 
 /// A single render pass containing render operations.
@@ -152,13 +155,13 @@ impl<'a> RenderPass<'a> {
             .push(RenderOperation::SetStencilReference(reference));
     }
 
-    /// Set uniform operation.
+    /// Set buffer operation.
     ///
     /// - `name`: the program binding name
-    /// - `buffer`: the data to set the uniform binding to
-    pub fn set_uniform(&mut self, name: &str, buffer: &'a Buffer) {
+    /// - `buffer`: the data to set the buffer binding to
+    pub fn set_buffer(&mut self, name: &str, buffer: &'a Buffer) {
         self.operations
-            .push(RenderOperation::SetUniform(name.to_string(), buffer));
+            .push(RenderOperation::SetBuffer(name.to_string(), buffer));
     }
 
     /// Set texture operation.
@@ -168,5 +171,18 @@ impl<'a> RenderPass<'a> {
     pub fn set_texture(&mut self, name: &str, texture: &'a Texture) {
         self.operations
             .push(RenderOperation::SetTexture(name.to_string(), texture));
+    }
+
+    /// Dispatch workgroup operation.
+    ///
+    /// This function is reserved for use in compute programs with `Context::compute` and will be ignored
+    /// if used otherwise.
+    ///
+    /// - `x`: the x dimension workgroup size
+    /// - `y`: the y dimension workgroup size
+    /// - `z`: the z dimension workgroup size
+    pub fn dispatch_workgroups(&mut self, x: u32, y: u32, z: u32) {
+        self.operations
+            .push(RenderOperation::DispatchWorkgroups(x, y, z));
     }
 }

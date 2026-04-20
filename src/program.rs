@@ -14,3 +14,15 @@ pub struct Program {
     pub(crate) bind_group_entries: HashMap<u32, HashMap<String, wgpu::BindGroupLayoutEntry>>, // (group, (name, entry))
     pub(crate) entry_names: Vec<String>, // binding names
 }
+
+/// A compute shader program object.
+///
+/// Created using `Context::compute_program`.
+pub struct ComputeProgram {
+    pub(crate) id: usize,
+    pub(crate) bind_group_layout_id: usize,
+    pub(crate) bind_group_layouts: HashMap<u32, wgpu::BindGroupLayout>, // (group, layout)
+    pub(crate) pipeline: wgpu::ComputePipeline,
+    pub(crate) bind_group_entries: HashMap<u32, HashMap<String, wgpu::BindGroupLayoutEntry>>, // (group, (name, entry))
+    pub(crate) entry_names: Vec<String>, // binding names
+}

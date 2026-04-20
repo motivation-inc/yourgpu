@@ -2,7 +2,7 @@ use crate::{
     BindingBuilder, DepthConfig, StencilConfig, TextureDimension, TextureType,
     buffer::{Buffer, BufferType},
     caching::{BindGroupKey, PipelineKey},
-    program::Program,
+    program::{ComputeProgram, Program},
     render_pass::{RenderOperation, RenderPass},
     texture::{Texture, TextureFormat},
     vertex_array::{VertexArray, VertexLayoutBuilder},
@@ -184,6 +184,93 @@ impl<'a> Context {
             fragment_shader: fs_module,
             bind_group_layouts,
             pipeline_layout,
+            bind_group_entries,
+            entry_names,
+        };
+
+        self.next_id += 1;
+
+        program
+    }
+
+    /// Constructs a new `Program` object.
+    ///
+    /// - `vertex_shader`: the vertex shader source
+    /// - `fragment_shader`: the fragment shader source (if `None`, the program defaults to no fragment shader)
+    /// - `bindings`: an array of `BindingBuilder`, where each `BindingBuilder` in `bindings` represents a single binding group
+    ///
+    /// This function requires the shader source to be valid [WebGPU Shading Language](https://www.w3.org/TR/WGSL/).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use yourgpu::{Context, BindingBuilder};
+    ///
+    /// let mut ctx = Context::new();
+    /// let compute_prog = ctx.compute_program("// compute shader", &[BindingBuilder::new(0)]);
+    /// ```
+    pub fn compute_program(
+        &mut self,
+        compute_shader: &str,
+        bindings: &[BindingBuilder],
+    ) -> ComputeProgram {
+        let cp_module = self
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(compute_shader.into()),
+            });
+
+        let mut bind_group_entries = HashMap::new();
+        let mut bind_group_layouts = HashMap::new();
+        let mut entry_names = Vec::new();
+
+        for binding in bindings {
+            for (name, _) in &binding.entries {
+                entry_names.push(name.to_owned());
+            }
+
+            bind_group_entries.insert(binding.group, binding.entries.clone());
+            bind_group_layouts.insert(
+                binding.group,
+                self.device
+                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: None,
+                        entries: &binding
+                            .entries
+                            .values()
+                            .map(|b| b.to_owned())
+                            .collect::<Vec<wgpu::BindGroupLayoutEntry>>(),
+                    }),
+            );
+        }
+
+        let pipeline_layout = self
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: None,
+                bind_group_layouts: &bind_group_layouts
+                    .values()
+                    .collect::<Vec<&wgpu::BindGroupLayout>>(),
+                immediate_size: 0,
+            });
+
+        let pipeline = self
+            .device
+            .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: None,
+                layout: Some(&pipeline_layout),
+                module: &cp_module,
+                entry_point: None,
+                compilation_options: Default::default(),
+                cache: None,
+            });
+
+        let program = ComputeProgram {
+            id: self.next_id,
+            bind_group_layout_id: self.next_id,
+            bind_group_layouts,
+            pipeline,
             bind_group_entries,
             entry_names,
         };
@@ -514,6 +601,10 @@ impl<'a> Context {
 
     /// A single render pass for a `Texture` object.
     ///
+    /// - `program`: the program object to use during the render pass
+    /// - `texture`: the texture object to render to
+    /// - `depth_texture`: the optional depth texture used during the render pass (if `None`, no depth attachment is initialized)
+    ///
     /// # Example
     ///
     /// ```
@@ -560,6 +651,9 @@ impl<'a> Context {
     }
 
     /// A single render pass for a `WindowSurface` object.
+    ///
+    /// - `program`: the program object to use during the render pass
+    /// - `window`: the window surface to render to
     ///
     /// This function will request the current frame from the window, potentially panicking if the
     /// function fails to acquire the next swap chain texture.
@@ -667,7 +761,7 @@ impl<'a> Context {
                 RenderOperation::SetStencilReference(rf) => {
                     pass.set_stencil_reference(rf);
                 }
-                RenderOperation::SetUniform(name, buffer) => {
+                RenderOperation::SetBuffer(name, buffer) => {
                     if !program.entry_names.contains(&name) {
                         panic!("Unknown program binding name: '{name}'")
                     }
@@ -727,7 +821,9 @@ impl<'a> Context {
                     texture_ids.sort();
 
                     let bind_groups = self.get_or_create_bind_group(
-                        &program,
+                        program.id,
+                        program.bind_group_layout_id,
+                        &program.bind_group_layouts,
                         &buffer_ids,
                         &texture_ids,
                         &group_entries,
@@ -758,11 +854,141 @@ impl<'a> Context {
                         pass.draw(0..vertex_array.vertex_count, 0..1);
                     }
                 }
+                _ => {}
             }
         }
 
         drop(pass); // drop the mut reference to encoder
         self.queue.submit(Some(encoder.finish()));
+    }
+
+    /// A single render pass for a compute program.
+    ///
+    /// - `compute_program`: the compute program object to use during the compute pass
+    ///
+    /// Since compute work uses alternative operations to render programs, any `RenderPass` call non-compute
+    /// specific will be ignored (e.g. `clear()`)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use yourgpu::{Context, TextureFormat, TextureType, TextureDimension, BindingBuilder};
+    ///
+    /// let mut ctx = Context::new();
+    /// let compute_prog = ctx.compute_program("// compute shader", &[BindingBuilder::new(0)]);
+    ///
+    /// ctx.compute(&compute_prog, |r| {
+    ///     r.dispatch_workgroups(1, 1, 1);
+    /// })
+    /// ```
+    pub fn compute<F>(&mut self, compute_program: &ComputeProgram, f: F)
+    where
+        F: FnOnce(&mut RenderPass<'a>),
+    {
+        let mut r = RenderPass {
+            clear: wgpu::Color::BLACK,
+            operations: Vec::new(),
+        };
+
+        f(&mut r);
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: None,
+            ..Default::default()
+        });
+
+        let mut buffers: HashMap<String, &'a Buffer> = HashMap::new();
+        let mut textures: HashMap<String, &'a Texture> = HashMap::new();
+        let mut dispatches = Vec::new();
+
+        for operation in r.operations {
+            match operation {
+                RenderOperation::SetBuffer(name, buffer) => {
+                    if !compute_program.entry_names.contains(&name) {
+                        panic!("Unknown program binding name: '{name}'")
+                    }
+
+                    buffers.insert(name, buffer);
+                }
+                RenderOperation::SetTexture(name, texture) => {
+                    if !compute_program.entry_names.contains(&name) {
+                        panic!("Unknown program binding name: '{name}'")
+                    }
+
+                    textures.insert(name, texture);
+                }
+                RenderOperation::DispatchWorkgroups(x, y, z) => {
+                    dispatches.push((x, y, z));
+                }
+                _ => {}
+            }
+        }
+
+        let mut buffer_ids: Vec<usize> = Vec::new();
+        let mut texture_ids: Vec<usize> = Vec::new();
+        let mut group_entries: HashMap<u32, Vec<wgpu::BindGroupEntry>> = HashMap::new();
+
+        for (group, bindings) in &compute_program.bind_group_entries {
+            for (name, binding) in bindings {
+                let entry = match binding.ty {
+                    wgpu::BindingType::Buffer { .. } => {
+                        let buffer = buffers.get(name).unwrap();
+                        buffer_ids.push(buffer.id);
+
+                        wgpu::BindGroupEntry {
+                            binding: binding.binding,
+                            resource: buffer.buffer.as_entire_binding(),
+                        }
+                    }
+                    wgpu::BindingType::Texture { .. } => {
+                        let tex = textures.get(name).unwrap();
+                        texture_ids.push(tex.id);
+
+                        wgpu::BindGroupEntry {
+                            binding: binding.binding,
+                            resource: wgpu::BindingResource::TextureView(&tex.view),
+                        }
+                    }
+                    wgpu::BindingType::Sampler(_) => {
+                        let tex = textures.get(name).unwrap();
+                        texture_ids.push(tex.id);
+
+                        wgpu::BindGroupEntry {
+                            binding: binding.binding,
+                            resource: wgpu::BindingResource::Sampler(&tex.sampler),
+                        }
+                    }
+                    _ => panic!("Unknown binding type."),
+                };
+
+                group_entries.entry(*group).or_default().push(entry);
+            }
+        }
+
+        buffer_ids.sort();
+        texture_ids.sort();
+
+        let bind_groups = self.get_or_create_bind_group(
+            compute_program.id,
+            compute_program.bind_group_layout_id,
+            &compute_program.bind_group_layouts,
+            &buffer_ids,
+            &texture_ids,
+            &group_entries,
+        );
+
+        pass.set_pipeline(&compute_program.pipeline);
+
+        for (group, bg) in &*bind_groups {
+            pass.set_bind_group(group.to_owned(), bg, &[]);
+        }
+
+        for (x, y, z) in dispatches {
+            pass.dispatch_workgroups(x, y, z);
+        }
     }
 
     /// Read data (in bytes) from a referenced `Buffer` object.
@@ -1137,14 +1363,16 @@ impl<'a> Context {
 
     fn get_or_create_bind_group(
         &mut self,
-        program: &Program,
+        program_id: usize,
+        layout_id: usize,
+        bind_group_layouts: &HashMap<u32, wgpu::BindGroupLayout>,
         buffer_ids: &[usize],
         texture_ids: &[usize],
         group_entries: &HashMap<u32, Vec<wgpu::BindGroupEntry>>,
     ) -> Rc<HashMap<u32, wgpu::BindGroup>> {
         let key = BindGroupKey {
-            program_id: program.id,
-            layout_id: program.bind_group_layout_id,
+            program_id,
+            layout_id,
             buffer_ids: buffer_ids.to_vec(),
             texture_ids: texture_ids.to_vec(),
         };
@@ -1154,7 +1382,7 @@ impl<'a> Context {
             .or_insert_with(|| {
                 let mut bind_groups = HashMap::new();
 
-                for (group, layout) in &program.bind_group_layouts {
+                for (group, layout) in bind_group_layouts {
                     let entries = group_entries
                         .get(group)
                         .expect("Missing bind group entries for group");
