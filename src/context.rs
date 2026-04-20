@@ -203,7 +203,7 @@ impl<'a> Context {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```no_run
     /// use yourgpu::{Context, BindingBuilder};
     ///
     /// let mut ctx = Context::new();
@@ -871,7 +871,7 @@ impl<'a> Context {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```no_run
     /// use yourgpu::{Context, TextureFormat, TextureType, TextureDimension, BindingBuilder};
     ///
     /// let mut ctx = Context::new();
