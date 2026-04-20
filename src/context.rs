@@ -106,7 +106,7 @@ impl<'a> Context {
         WindowSurface { surface, config }
     }
 
-    /// Constructs a new `Program` object,
+    /// Constructs a new `Program` object.
     ///
     /// - `vertex_shader`: the vertex shader source
     /// - `fragment_shader`: the fragment shader source (if `None`, the program defaults to no fragment shader)
