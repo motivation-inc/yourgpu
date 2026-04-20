@@ -19,16 +19,25 @@ fn main() {
                 value: vec4<f32>,
             };
 
+            struct Brightness {
+                value: f32,
+            };
+
             @group(0) @binding(0)
             var<uniform> u_color: Color;
 
+            @group(0) @binding(1)
+            var<uniform> u_brightness: Brightness;
+
             @fragment
             fn fs() -> @location(0) vec4<f32> {
-                return u_color.value;
+                return vec4<f32>(u_color.value.rgb * u_brightness.value, u_color.value.a);
             }
         "#,
         ),
-        &[BindingBuilder::new(0).uniform("u_color", 0)], // describe how the binding is built
+        &[BindingBuilder::new(0)
+            .uniform("u_color", 0)
+            .uniform("u_brightness", 1)], // describe how the binding is built
     );
     let tex = ctx.texture(
         (1080, 1080, 1),
@@ -41,8 +50,9 @@ fn main() {
     // vertex buffer
     let vbo = ctx.vertex_buffer(&[0.0, 0.6, 0.0, -0.6, -0.6, 0.0, 0.6, -0.6, 0.0]);
 
-    // uniform buffer (orange-ish)
-    let color_buffer = ctx.uniform_buffer(&[1.0_f32, 0.5, 0.0, 1.0]);
+    // uniform buffers
+    let color_buffer = ctx.uniform_buffer(&[1.0_f32, 0.5, 0.0, 1.0]); // orange
+    let brightness_buffer = ctx.uniform_buffer(&[0.5_f32]); // dim
 
     // vertex array
     let vao = ctx.vertex_array(
@@ -54,7 +64,10 @@ fn main() {
     // render pass
     ctx.render_texture(&prog, &tex, None, |r| {
         r.clear(0.0, 0.0, 0.0, 1.0); // black background
-        r.set_buffer("u_color", &color_buffer); // set the uniform
+
+        // set uniforms
+        r.set_buffer("u_color", &color_buffer);
+        r.set_buffer("u_brightness", &brightness_buffer);
 
         r.draw(&vao); // draw
     });
