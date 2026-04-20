@@ -25,6 +25,39 @@ impl BindingBuilder {
         }
     }
 
+    /// Corresponds to a WGSL `storage` binding.
+    ///
+    /// - `name`: the binding name
+    /// - `binding`: the binding location
+    /// - `read_only`: if the storage binding is read only in the shader
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use yourgpu::BindingBuilder;
+    ///
+    /// let bindings = BindingBuilder::new(0).storage("data", 0, true);
+    /// ```
+    pub fn storage(mut self, name: &str, binding: u32, read_only: bool) -> Self {
+        self.entries.insert(
+            name.to_string(),
+            wgpu::BindGroupLayoutEntry {
+                binding,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage {
+                        read_only: read_only,
+                    },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        );
+
+        self
+    }
+
     /// Corresponds to a WGSL `uniform` binding.
     ///
     /// - `name`: the binding name
