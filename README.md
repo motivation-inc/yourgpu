@@ -16,8 +16,8 @@ fn main() {
 ```
 
 ## Features
-- Simple and easy to learn :)
-- Contexts are headless by default (no screen required)
+- Simple and easy to learn
+- Headless system by default (no render target required)
 - First-class [winit](https://github.com/rust-windowing/winit) support
 - Built around the [WebGPU Shading Language](https://www.w3.org/TR/WGSL/)
 - Exposed `wgpu::*` methods for easy integration with WGPU-dependent libraries like `egui_wgpu` 
