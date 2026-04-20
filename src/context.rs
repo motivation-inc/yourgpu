@@ -986,6 +986,9 @@ impl<'a> Context {
         for (x, y, z) in dispatches {
             pass.dispatch_workgroups(x, y, z);
         }
+
+        drop(pass); // drop the mut reference to encoder
+        self.queue.submit(Some(encoder.finish()));
     }
 
     /// Read data (in bytes) from a referenced `Buffer` object.
