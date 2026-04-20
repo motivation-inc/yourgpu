@@ -362,9 +362,6 @@ impl<'a> Context {
     /// Constructs a new `Buffer` object with the storage usage.
     ///
     /// - `data`: storage data
-    ///
-    /// By default, storage buffers can be read or written to, and must be declared `read_write` in the
-    /// WGSL shader program.
     pub fn storage_buffer<T: bytemuck::Pod>(&mut self, data: &[T]) -> Buffer {
         self.buffer(data, BufferType::Storage)
     }
