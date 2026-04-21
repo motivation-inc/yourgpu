@@ -20,7 +20,8 @@ fn main() {
 - Headless system by default (no render target required)
 - First-class [winit](https://github.com/rust-windowing/winit) support
 - Built around the [WebGPU Shading Language](https://www.w3.org/TR/WGSL/)
-- Exposed `wgpu::*` methods for easy integration with WGPU-dependent libraries like `egui_wgpu` 
+- Compute program and shader support
+- Exposed wgpu types for easy integration with WGPU-dependent libraries
 
 ## Using `yourgpu`
 
