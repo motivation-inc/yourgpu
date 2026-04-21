@@ -1310,6 +1310,9 @@ impl<'a> Context {
             layout_id: program.pipeline_layout_id,
             attribute_hash: vertex_hasher.finish(),
             depth_stencil_state_hash: depth_hasher.finish(),
+            color_format: color_format,
+            cull_mode: cull_mode,
+            front_face: front_face,
         };
 
         let color_target = Some(wgpu::ColorTargetState {

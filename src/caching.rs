@@ -4,6 +4,9 @@ pub(crate) struct PipelineKey {
     pub layout_id: usize,
     pub attribute_hash: u64,
     pub depth_stencil_state_hash: u64,
+    pub color_format: wgpu::TextureFormat,
+    pub cull_mode: Option<wgpu::Face>,
+    pub front_face: wgpu::FrontFace,
 }
 
 #[derive(Hash, Eq, PartialEq, Clone)]
