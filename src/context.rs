@@ -195,8 +195,7 @@ impl<'a> Context {
 
     /// Constructs a new `Program` object.
     ///
-    /// - `vertex_shader`: the vertex shader source
-    /// - `fragment_shader`: the fragment shader source (if `None`, the program defaults to no fragment shader)
+    /// - `compute_shader`: the compute shader source
     /// - `bindings`: an array of `BindingBuilder`, where each `BindingBuilder` in `bindings` represents a single binding group
     ///
     /// This function requires the shader source to be valid [WebGPU Shading Language](https://www.w3.org/TR/WGSL/).
