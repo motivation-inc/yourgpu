@@ -78,7 +78,7 @@ ctx.render_texture(&prog, &tex, None,  |r| {
 });
 ```
 
-For the full example, see the file in the [examples folder](https://github.com/motivation-inc/yourgpu/blob/main/examples/01_triangle.rs).
+For the full example, see the file in the [examples folder](https://github.com/Hydle-Research-Group/yourgpu/blob/main/examples/01_triangle.rs).
 
 ## Free & Open-Source
 

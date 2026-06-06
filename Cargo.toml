@@ -1,11 +1,11 @@
 [package]
 name = "yourgpu"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 license = "GPL-3.0"
-authors = ["Motivation Software Inc."]
+authors = ["Hydle Research Group"]
 description = "A modern, simple, and fast graphics API for Rust."
-repository = "https://github.com/motivation-inc/yourgpu"
+repository = "https://github.com/Hydle-Research-Group/yourgpu"
 
 [dependencies]
 bytemuck = "1.25.0"
